@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search } from "lucide-react";
+import remarkGfm from "remark-gfm";
 import { getChatHistory, saveChatMessage, clearChatHistory } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
@@ -168,7 +169,7 @@ export default function ChatPage() {
             >
               {msg.role === "assistant" ? (
                 <div className="prose prose-invert prose-sm max-w-none [&_a]:text-foreground [&_a]:underline">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-sm">{msg.content}</p>

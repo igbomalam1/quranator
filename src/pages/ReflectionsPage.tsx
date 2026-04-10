@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen } from "lucide-react";
+import { Plus, BookOpen, Sparkles } from "lucide-react";
 import { getReflections, saveReflection } from "@/lib/storage";
+import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import type { Reflection } from "@/lib/storage";
 
@@ -11,6 +12,7 @@ export default function ReflectionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [verseKey, setVerseKey] = useState("");
   const [text, setText] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
 
   const handleSave = () => {
     if (!verseKey.trim() || !text.trim()) {
@@ -25,13 +27,46 @@ export default function ReflectionsPage() {
     toast.success("Reflection saved!");
   };
 
+  const generateAiReflection = async () => {
+    setLoadingAi(true);
+    try {
+      let result = "";
+      await streamChatMessage(
+        "Pick a beautiful, lesser-known Quran verse and write a short, heartfelt personal reflection (3-4 sentences) on its meaning and how it applies to daily life. Start with the verse reference in format [Surah:Ayah] then the reflection. Keep it personal and inspiring.",
+        [],
+        (chunk) => { result += chunk; },
+        () => {},
+      );
+      const verseMatch = result.match(/\[(\d+:\d+)\]/);
+      const vk = verseMatch ? verseMatch[1] : "2:286";
+      const reflectionText = result.replace(/\[\d+:\d+\]\s*/, "").trim();
+      const r = saveReflection({ verseKey: vk, text: reflectionText });
+      setReflections([r, ...getReflections().filter(x => x.id !== r.id)]);
+      toast.success("AI reflection generated! 🌟");
+    } catch {
+      toast.error("Failed to generate reflection");
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Reflections</h1>
-        <Button variant="outline" size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
-          <Plus className="h-3.5 w-3.5" /> New
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generateAiReflection} disabled={loadingAi} className="gap-1">
+            {loadingAi ? (
+              <div className="h-3.5 w-3.5 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            AI Reflect
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
+            <Plus className="h-3.5 w-3.5" /> New
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -61,7 +96,10 @@ export default function ReflectionsPage() {
       {reflections.length === 0 ? (
         <div className="text-center py-20">
           <BookOpen className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground text-sm">No reflections yet. Start journaling your Quran journey!</p>
+          <p className="text-muted-foreground text-sm mb-4">No reflections yet. Start journaling your Quran journey!</p>
+          <Button variant="outline" size="sm" onClick={generateAiReflection} disabled={loadingAi} className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Generate AI Reflection
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">

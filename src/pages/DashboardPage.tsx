@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Flame, Play, Pause, BookOpen, Target } from "lucide-react";
 import { getStreakData, recordActivity, getReflections } from "@/lib/storage";
-import { fetchVerseByKey, getRandomVerseKey } from "@/lib/quran-api";
+import { fetchVerseByKey, getRandomVerseKey, getCachedAyah, cacheAyah } from "@/lib/quran-api";
 import type { Verse } from "@/lib/quran-api";
 import { toast } from "sonner";
 
@@ -17,13 +17,31 @@ export default function DashboardPage() {
   useEffect(() => {
     const updated = recordActivity();
     setStreak(updated);
-    toast.success("Welcome back! Streak updated.");
+
+    // Check cache first for daily ayah
+    const cached = getCachedAyah();
+    if (cached) {
+      setAyah(cached);
+      return;
+    }
 
     const verseKey = getRandomVerseKey();
     fetchVerseByKey(verseKey).then((v) => {
-      if (v) setAyah(v);
+      if (v) {
+        setAyah(v);
+        cacheAyah(v);
+      }
     });
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+      }
+    };
+  }, [audio]);
 
   const toggleAudio = () => {
     if (!ayah?.audio?.url) {
@@ -34,9 +52,16 @@ export default function DashboardPage() {
       audio.pause();
       setPlaying(false);
     } else {
+      if (audio) {
+        audio.pause();
+      }
       const a = new Audio(ayah.audio.url);
       a.onended = () => setPlaying(false);
-      a.play();
+      a.onerror = () => {
+        toast.error("Audio failed to load");
+        setPlaying(false);
+      };
+      a.play().catch(() => toast.error("Audio playback failed"));
       setAudio(a);
       setPlaying(true);
     }
@@ -128,7 +153,9 @@ export default function DashboardPage() {
             <div>
               <p className="text-right text-xl leading-loose mb-3 font-serif">{ayah.text_uthmani}</p>
               {ayah.translations?.[0] && (
-                <p className="text-sm text-muted-foreground italic">{ayah.translations[0].text}</p>
+                <p className="text-sm text-muted-foreground italic">
+                  {ayah.translations[0].text.replace(/<[^>]*>/g, "")}
+                </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">— {ayah.verse_key}</p>
             </div>
