@@ -6,6 +6,7 @@ import { getChatHistory, saveChatMessage, clearChatHistory } from "@/lib/storage
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import TajweedAudioText from "@/components/TajweedAudioText";
 import type { ChatMessage } from "@/lib/storage";
 
 const SUGGESTIONS = [
@@ -169,7 +170,23 @@ export default function ChatPage() {
             >
               {msg.role === "assistant" ? (
                 <div className="prose prose-invert prose-sm max-w-none [&_a]:text-foreground [&_a]:underline">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      td: ({ children }) => (
+                        <td>
+                          <TajweedAudioText content={String(children)} />
+                        </td>
+                      ),
+                      p: ({ children }) => (
+                        <p>
+                          <TajweedAudioText content={String(children)} />
+                        </p>
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-sm">{msg.content}</p>
