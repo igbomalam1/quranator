@@ -106,7 +106,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8 text-center text-sm text-muted-foreground">
-        Built for the Quran.com Hackathon · Powered by Gemini AI
+        Built for the Quran.com Hackathon · Developed by DevI Software Solution and team
       </footer>
     </div>
   );

@@ -10,6 +10,8 @@ import DashboardPage from "./pages/DashboardPage";
 import ChatPage from "./pages/ChatPage";
 import ReflectionsPage from "./pages/ReflectionsPage";
 import BookmarksPage from "./pages/BookmarksPage";
+import QuranReaderPage from "./pages/QuranReaderPage";
+import GoalsPage from "./pages/GoalsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +40,8 @@ const App = () => (
           <Route path="/callback" element={<CallbackPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/quran" element={<ProtectedRoute><QuranReaderPage /></ProtectedRoute>} />
+          <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
           <Route path="/reflections" element={<ProtectedRoute><ReflectionsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
