@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bookmark, Plus, Trash2, ExternalLink } from "lucide-react";
+import { Bookmark, Plus, Trash2, ExternalLink, Sparkles } from "lucide-react";
 import { getBookmarks, saveBookmark, removeBookmark } from "@/lib/storage";
 import { getQuranComLink } from "@/lib/quran-api";
+import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import type { Bookmark as BookmarkType } from "@/lib/storage";
 
@@ -12,6 +13,7 @@ export default function BookmarksPage() {
   const [showForm, setShowForm] = useState(false);
   const [verseKey, setVerseKey] = useState("");
   const [note, setNote] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
 
   const handleSave = () => {
     if (!verseKey.trim()) {
@@ -32,13 +34,48 @@ export default function BookmarksPage() {
     toast.success("Bookmark removed");
   };
 
+  const suggestBookmark = async () => {
+    setLoadingAi(true);
+    try {
+      let result = "";
+      await streamChatMessage(
+        "Suggest one powerful Quran verse that everyone should bookmark for daily remembrance. Return ONLY in this exact format: VERSE_KEY|note. Example: 2:255|Ayatul Kursi - the greatest verse for protection. No extra text.",
+        [],
+        (chunk) => { result += chunk; },
+        () => {},
+      );
+      const parts = result.trim().split("|");
+      if (parts.length >= 2) {
+        const b = saveBookmark({ verseKey: parts[0].trim(), note: parts.slice(1).join("|").trim() });
+        setBookmarks([b, ...getBookmarks().filter(x => x.id !== b.id)]);
+        toast.success("AI bookmark added! 📌");
+      } else {
+        toast.error("Could not parse AI suggestion");
+      }
+    } catch {
+      toast.error("Failed to get AI suggestion");
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Bookmarks</h1>
-        <Button variant="outline" size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
-          <Plus className="h-3.5 w-3.5" /> Add
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={suggestBookmark} disabled={loadingAi} className="gap-1">
+            {loadingAi ? (
+              <div className="h-3.5 w-3.5 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            AI Suggest
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowForm(!showForm)} className="gap-1">
+            <Plus className="h-3.5 w-3.5" /> Add
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -67,7 +104,10 @@ export default function BookmarksPage() {
       {bookmarks.length === 0 ? (
         <div className="text-center py-20">
           <Bookmark className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground text-sm">No bookmarks yet. Save your favorite verses!</p>
+          <p className="text-muted-foreground text-sm mb-4">No bookmarks yet. Save your favorite verses!</p>
+          <Button variant="outline" size="sm" onClick={suggestBookmark} disabled={loadingAi} className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Get AI Bookmark Suggestion
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
