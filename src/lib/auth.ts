@@ -142,5 +142,3 @@ export function demoLogin() {
   localStorage.setItem("auth_tokens", JSON.stringify(tokens));
   localStorage.setItem("auth_user", JSON.stringify(user));
 }
-
-export { QURAN_API_BASE };
