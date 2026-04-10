@@ -1,5 +1,5 @@
 import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal } from "lucide-react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getUser, logout } from "@/lib/auth";
