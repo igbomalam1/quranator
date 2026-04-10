@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search } from "lucide-react";
+import remarkGfm from "remark-gfm";
 import { getChatHistory, saveChatMessage, clearChatHistory } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
