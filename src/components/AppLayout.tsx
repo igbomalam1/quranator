@@ -1,4 +1,4 @@
-import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu } from "lucide-react";
+import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,6 +9,8 @@ import { useState } from "react";
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: BarChart3 },
   { label: "AI Mentor", path: "/chat", icon: MessageSquare },
+  { label: "Quran", path: "/quran", icon: Library },
+  { label: "Goals", path: "/goals", icon: Target },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
   { label: "Bookmarks", path: "/bookmarks", icon: Bookmark },
 ];
