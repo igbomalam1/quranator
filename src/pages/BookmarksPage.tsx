@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bookmark, Plus, Trash2, ExternalLink, Sparkles } from "lucide-react";
-import { getBookmarks, saveBookmark, removeBookmark } from "@/lib/storage";
-import { getQuranComLink } from "@/lib/quran-api";
+import { Bookmark, Plus, Trash2, MessageSquare, Sparkles } from "lucide-react";
+import { getBookmarks, saveBookmark, removeBookmark, saveChatMessage } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import type { Bookmark as BookmarkType } from "@/lib/storage";
 
 export default function BookmarksPage() {
+  const navigate = useNavigate();
   const [bookmarks, setBookmarks] = useState<BookmarkType[]>(getBookmarks());
   const [showForm, setShowForm] = useState(false);
   const [verseKey, setVerseKey] = useState("");
@@ -120,15 +121,18 @@ export default function BookmarksPage() {
                     {b.note && <p className="text-xs text-muted-foreground mt-1">{b.note}</p>}
                   </div>
                   <div className="flex gap-1">
-                    <a
-                      href={getQuranComLink(b.verseKey)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        const prompt = `Tell me about verse [${b.verseKey}]${b.note ? ` — "${b.note}"` : ""}. Provide the Arabic text, transliteration, full translation, tafsir, and why this verse is important for daily life.`;
+                        saveChatMessage({ role: "user", content: prompt });
+                        navigate("/chat");
+                      }}
                     >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Button>
-                    </a>
+                      <MessageSquare className="h-3.5 w-3.5" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemove(b.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

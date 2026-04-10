@@ -5,6 +5,8 @@ import { Plus, BookOpen, Sparkles } from "lucide-react";
 import { getReflections, saveReflection } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Reflection } from "@/lib/storage";
 
 export default function ReflectionsPage() {
@@ -112,7 +114,9 @@ export default function ReflectionsPage() {
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">{r.text}</p>
+                <div className="prose prose-invert prose-sm max-w-none text-muted-foreground [&_p]:text-muted-foreground [&_strong]:text-foreground [&_a]:text-foreground [&_a]:underline">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{r.text}</ReactMarkdown>
+                </div>
               </CardContent>
             </Card>
           ))}
