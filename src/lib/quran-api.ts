@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Quran.com Pre-Production API helpers
-
 export interface Chapter {
   id: number;
   name_simple: string;
@@ -40,8 +38,19 @@ export async function fetchChapters(): Promise<Chapter[]> {
 
 export async function fetchVerseByKey(verseKey: string): Promise<Verse | null> {
   try {
-    const data = await quranFetch(`/verses/by_key/${verseKey}?translations=131,33&language=en`);
-    return data.verse || null;
+    // Use Sahih International (20) and Pickthall (19) for English translations
+    const data = await quranFetch(`/verses/by_key/${verseKey}?translations=20,19&language=en&fields=text_uthmani,audio`);
+    if (!data?.verse) return null;
+    const verse = data.verse;
+
+    // Fetch audio separately via recitations endpoint
+    const audioData = await quranFetch(`/recitations/7/by_ayah/${verseKey}`);
+    if (audioData?.audio_files?.[0]) {
+      const audioFile = audioData.audio_files[0];
+      verse.audio = { url: `https://verses.quran.com/${audioFile.url}` };
+    }
+
+    return verse;
   } catch {
     return null;
   }
@@ -49,8 +58,19 @@ export async function fetchVerseByKey(verseKey: string): Promise<Verse | null> {
 
 export async function fetchVersesByChapter(chapter: number, page = 1): Promise<Verse[]> {
   try {
-    const data = await quranFetch(`/verses/by_chapter/${chapter}?translations=131&language=en&page=${page}&per_page=10`);
-    return data.verses || [];
+    const data = await quranFetch(`/verses/by_chapter/${chapter}?translations=20&language=en&page=${page}&per_page=10&fields=text_uthmani`);
+    const verses = data.verses || [];
+
+    // Fetch audio for the chapter page
+    const audioData = await quranFetch(`/recitations/7/by_chapter/${chapter}?per_page=10&page=${page}`);
+    if (audioData?.audio_files) {
+      for (const af of audioData.audio_files) {
+        const v = verses.find((v: Verse) => v.verse_key === af.verse_key || v.id === af.verse_id);
+        if (v) v.audio = { url: `https://verses.quran.com/${af.url}` };
+      }
+    }
+
+    return verses;
   } catch {
     return [];
   }
@@ -79,4 +99,30 @@ export function getRandomVerseKey(): string {
 export function getQuranComLink(verseKey: string): string {
   const [chapter, verse] = verseKey.split(":");
   return `https://quran.com/${chapter}/${verse}`;
+}
+
+// Cache ayah of the day for 24 hours
+const AYAH_CACHE_KEY = "ayah_of_the_day";
+
+interface AyahCache {
+  verse: Verse;
+  date: string;
+}
+
+export function getCachedAyah(): Verse | null {
+  try {
+    const raw = localStorage.getItem(AYAH_CACHE_KEY);
+    if (!raw) return null;
+    const cached: AyahCache = JSON.parse(raw);
+    const today = new Date().toISOString().split("T")[0];
+    if (cached.date === today) return cached.verse;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheAyah(verse: Verse) {
+  const today = new Date().toISOString().split("T")[0];
+  localStorage.setItem(AYAH_CACHE_KEY, JSON.stringify({ verse, date: today }));
 }
