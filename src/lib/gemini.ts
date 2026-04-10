@@ -77,7 +77,7 @@ export async function sendChatMessage(
     if (verseRefs.length > 0) {
       const uniqueRefs = [...new Set(verseRefs)];
       const citations = uniqueRefs.map((ref) => {
-        const key = ref.replace(/[\[\]]/g, "");
+        const key = (ref as string).replace(/[\[\]]/g, "");
         return `- ${ref} — [View on Quran.com](${getQuranComLink(key)})`;
       });
       if (!text.includes("📖") && !text.includes("Citation")) {
