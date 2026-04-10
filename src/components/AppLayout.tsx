@@ -1,16 +1,34 @@
-import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal } from "lucide-react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getUser, logout } from "@/lib/auth";
 import { getStreakData } from "@/lib/storage";
 import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: BarChart3 },
   { label: "AI Mentor", path: "/chat", icon: MessageSquare },
   { label: "Quran", path: "/quran", icon: Library },
   { label: "Goals", path: "/goals", icon: Target },
+  { label: "Reflections", path: "/reflections", icon: BookOpen },
+  { label: "Bookmarks", path: "/bookmarks", icon: Bookmark },
+];
+
+const mobileNavItems = [
+  { label: "Dashboard", path: "/dashboard", icon: BarChart3 },
+  { label: "AI Mentor", path: "/chat", icon: MessageSquare },
+  { label: "Goals", path: "/goals", icon: Target },
+];
+
+const moreItems = [
+  { label: "Quran", path: "/quran", icon: Library },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
   { label: "Bookmarks", path: "/bookmarks", icon: Bookmark },
 ];
@@ -86,8 +104,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50 flex">
-          {navItems.map((item) => {
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background z-50 flex items-stretch">
+          {mobileNavItems.map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -102,6 +120,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
+                  moreItems.some((m) => location.pathname === m.path)
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                More
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="mb-2">
+              {moreItems.map((item) => (
+                <DropdownMenuItem key={item.path} asChild>
+                  <Link to={item.path} className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         {/* Main content */}

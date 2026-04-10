@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Copy, Trash2, Sparkles } from "lucide-react";
+import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search } from "lucide-react";
 import { getChatHistory, saveChatMessage, clearChatHistory } from "@/lib/storage";
-import { sendChatMessage } from "@/lib/gemini";
+import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage } from "@/lib/storage";
@@ -25,7 +25,7 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const send = async (text: string) => {
+  const send = async (text: string, mode?: "tajweed" | "analyze" | "read") => {
     if (!text.trim() || loading) return;
     setInput("");
 
@@ -33,17 +33,63 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    let assistantContent = "";
+
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
-      const reply = await sendChatMessage(text.trim(), history);
-      const aiMsg = saveChatMessage({ role: "assistant", content: reply });
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch {
-      toast.error("Failed to get response");
+      await streamChatMessage(
+        text.trim(),
+        history,
+        (chunk) => {
+          assistantContent += chunk;
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "assistant" && !last.timestamp) {
+              return prev.map((m, i) =>
+                i === prev.length - 1 ? { ...m, content: assistantContent } : m
+              );
+            }
+            return [...prev, { id: "streaming", role: "assistant", content: assistantContent, timestamp: "" }];
+          });
+        },
+        () => {
+          const aiMsg = saveChatMessage({ role: "assistant", content: assistantContent });
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => m.id !== "streaming");
+            return [...filtered, aiMsg];
+          });
+        },
+        mode
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to get response");
     } finally {
       setLoading(false);
       inputRef.current?.focus();
     }
+  };
+
+  const handleAction = (action: "read" | "tajweed" | "analyze") => {
+    const lastVerse = messages
+      .slice()
+      .reverse()
+      .find((m) => m.content.match(/\[\d+:\d+\]/));
+    const verseMatch = lastVerse?.content.match(/\[(\d+:\d+)\]/);
+    const verse = verseMatch ? verseMatch[1] : "";
+
+    const prompts = {
+      read: verse
+        ? `Read and teach me verse [${verse}] — provide Arabic text, transliteration, word-by-word translation, and a brief explanation.`
+        : "Suggest a beautiful verse for me to read today and teach me how to recite it with transliteration.",
+      tajweed: verse
+        ? `Explain the tajweed rules in verse [${verse}] — cover makharij (articulation points), sifaat (characteristics), and any special rules like idgham, ikhfa, etc.`
+        : "Teach me the most important tajweed rules for beginners with examples from the Quran.",
+      analyze: verse
+        ? `Deeply analyze verse [${verse}] — cover historical context (asbab al-nuzul), word-by-word breakdown, multiple tafsir perspectives, and practical lessons.`
+        : "Analyze a powerful verse about patience and provide its full tafsir breakdown.",
+    };
+
+    send(prompts[action], action);
   };
 
   const copyText = (text: string) => {
@@ -91,6 +137,19 @@ export default function ChatPage() {
                   {s}
                 </button>
               ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-6">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleAction("read")}>
+                <BookOpen className="h-3.5 w-3.5" /> Read
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleAction("tajweed")}>
+                <Languages className="h-3.5 w-3.5" /> Tajweed
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleAction("analyze")}>
+                <Search className="h-3.5 w-3.5" /> Analyze
+              </Button>
             </div>
           </div>
         )}
@@ -140,7 +199,21 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-border">
+      <div className="px-4 py-3 border-t border-border space-y-2">
+        {/* Action buttons when chat has messages */}
+        {messages.length > 0 && !loading && (
+          <div className="flex gap-2 max-w-3xl mx-auto">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => handleAction("read")}>
+              <BookOpen className="h-3 w-3" /> Read
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => handleAction("tajweed")}>
+              <Languages className="h-3 w-3" /> Tajweed
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => handleAction("analyze")}>
+              <Search className="h-3 w-3" /> Analyze
+            </Button>
+          </div>
+        )}
         <form
           onSubmit={(e) => { e.preventDefault(); send(input); }}
           className="flex gap-2 max-w-3xl mx-auto"

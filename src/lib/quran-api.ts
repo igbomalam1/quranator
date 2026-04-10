@@ -1,4 +1,4 @@
-import { QURAN_API_BASE } from "./auth";
+import { supabase } from "@/integrations/supabase/client";
 
 // Quran.com Pre-Production API helpers
 
@@ -18,10 +18,20 @@ export interface Verse {
   audio?: { url: string };
 }
 
+async function quranFetch(endpoint: string): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("quran-proxy", {
+    body: { endpoint },
+  });
+  if (error) {
+    console.error("quran-proxy error:", error);
+    return null;
+  }
+  return data;
+}
+
 export async function fetchChapters(): Promise<Chapter[]> {
   try {
-    const res = await fetch(`${QURAN_API_BASE}/content/api/v4/chapters`);
-    const data = await res.json();
+    const data = await quranFetch("/chapters");
     return data.chapters || [];
   } catch {
     return [];
@@ -30,10 +40,7 @@ export async function fetchChapters(): Promise<Chapter[]> {
 
 export async function fetchVerseByKey(verseKey: string): Promise<Verse | null> {
   try {
-    const res = await fetch(
-      `${QURAN_API_BASE}/content/api/v4/verses/by_key/${verseKey}?translations=131,33&language=en`
-    );
-    const data = await res.json();
+    const data = await quranFetch(`/verses/by_key/${verseKey}?translations=131,33&language=en`);
     return data.verse || null;
   } catch {
     return null;
@@ -42,10 +49,7 @@ export async function fetchVerseByKey(verseKey: string): Promise<Verse | null> {
 
 export async function fetchVersesByChapter(chapter: number, page = 1): Promise<Verse[]> {
   try {
-    const res = await fetch(
-      `${QURAN_API_BASE}/content/api/v4/verses/by_chapter/${chapter}?translations=131&language=en&page=${page}&per_page=10`
-    );
-    const data = await res.json();
+    const data = await quranFetch(`/verses/by_chapter/${chapter}?translations=131&language=en&page=${page}&per_page=10`);
     return data.verses || [];
   } catch {
     return [];
@@ -54,10 +58,7 @@ export async function fetchVersesByChapter(chapter: number, page = 1): Promise<V
 
 export async function searchQuran(query: string): Promise<Verse[]> {
   try {
-    const res = await fetch(
-      `${QURAN_API_BASE}/content/api/v4/search?q=${encodeURIComponent(query)}&language=en`
-    );
-    const data = await res.json();
+    const data = await quranFetch(`/search?q=${encodeURIComponent(query)}&language=en`);
     return data.search?.results?.map((r: any) => ({
       id: r.verse_id,
       verse_key: r.verse_key,
