@@ -8,6 +8,18 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import TajweedAudioText from "@/components/TajweedAudioText";
 import type { ChatMessage } from "@/lib/storage";
+import React from "react";
+
+function extractTextFromChildren(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (typeof children === "number") return String(children);
+  if (!children) return "";
+  if (Array.isArray(children)) return children.map(extractTextFromChildren).join("");
+  if (typeof children === "object" && "props" in (children as any)) {
+    return extractTextFromChildren((children as any).props?.children);
+  }
+  return String(children);
+}
 
 const SUGGESTIONS = [
   "What can you help me do?",
