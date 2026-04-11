@@ -10,6 +10,7 @@ import TajweedAudioText from "@/components/TajweedAudioText";
 import type { ChatMessage } from "@/lib/storage";
 
 const SUGGESTIONS = [
+  "What can you help me do?",
   "What does Ayatul Kursi teach us?",
   "How can I build a daily Quran habit?",
   "Explain the meaning of Surah Al-Fatiha",
@@ -173,16 +174,14 @@ export default function ChatPage() {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      td: ({ children }) => (
-                        <td>
-                          <TajweedAudioText content={String(children)} />
-                        </td>
-                      ),
-                      p: ({ children }) => (
-                        <p>
-                          <TajweedAudioText content={String(children)} />
-                        </p>
-                      ),
+                      td: ({ children }) => {
+                        const text = extractTextFromChildren(children);
+                        return <td><TajweedAudioText content={text} /></td>;
+                      },
+                      p: ({ children }) => {
+                        const text = extractTextFromChildren(children);
+                        return <p><TajweedAudioText content={text} /></p>;
+                      },
                     }}
                   >
                     {msg.content}

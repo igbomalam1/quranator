@@ -7,7 +7,12 @@ interface Props {
   content: string;
 }
 
-export default function TajweedAudioText({ content }: Props) {
+export default function TajweedAudioText({ content: rawContent }: Props) {
+  // Safely convert content to string, handling React element objects
+  const content = typeof rawContent === "string" ? rawContent : 
+    (rawContent && typeof rawContent === "object" && "props" in (rawContent as any)) 
+      ? String((rawContent as any).props?.children ?? "") 
+      : String(rawContent ?? "");
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
 
   const handlePlay = useCallback((word: string, index: number) => {
