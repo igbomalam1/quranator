@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback, forwardRef } from "react";
 import { Volume2 } from "lucide-react";
 
 const ARABIC_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]+(?:\s[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]+)*/g;
@@ -7,13 +7,14 @@ interface Props {
   content: string;
 }
 
-export default function TajweedAudioText({ content: rawContent }: Props) {
-  // Safely convert content to string, handling React element objects
-  const content = typeof rawContent === "string" ? rawContent : 
-    (rawContent && typeof rawContent === "object" && "props" in (rawContent as any)) 
-      ? String((rawContent as any).props?.children ?? "") 
-      : String(rawContent ?? "");
+const TajweedAudioText = forwardRef<HTMLSpanElement, Props>(({ content: rawContent }, ref) => {
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+
+  // Safely convert content to string
+  const content = typeof rawContent === "string" ? rawContent :
+    (rawContent && typeof rawContent === "object" && "props" in (rawContent as any))
+      ? String((rawContent as any).props?.children ?? "")
+      : String(rawContent ?? "");
 
   const handlePlay = useCallback((word: string, index: number) => {
     if (!("speechSynthesis" in window)) return;
@@ -45,12 +46,12 @@ export default function TajweedAudioText({ content: rawContent }: Props) {
     parts.push({ type: "text", value: content.slice(lastIndex) });
   }
 
-  if (matches.length === 0) return <span>{content}</span>;
+  if (matches.length === 0) return <span ref={ref}>{content}</span>;
 
   let arabicCounter = 0;
 
   return (
-    <span>
+    <span ref={ref}>
       {parts.map((part, i) => {
         if (part.type !== "arabic") return <span key={i}>{part.value}</span>;
         const currentIndex = arabicCounter++;
@@ -75,4 +76,7 @@ export default function TajweedAudioText({ content: rawContent }: Props) {
       })}
     </span>
   );
-}
+});
+
+TajweedAudioText.displayName = "TajweedAudioText";
+export default TajweedAudioText;

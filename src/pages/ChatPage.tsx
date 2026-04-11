@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search } from "lucide-react";
+import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search, Plus, History, ChevronLeft, X } from "lucide-react";
 import remarkGfm from "remark-gfm";
-import { getChatHistory, saveChatMessage, clearChatHistory } from "@/lib/storage";
+import {
+  getChatSessions, getSessionMessages, addMessageToSession,
+  createChatSession, deleteChatSession, getActiveSessionId, setActiveSessionId,
+} from "@/lib/storage";
+import type { ChatMessage, ChatSession } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import TajweedAudioText from "@/components/TajweedAudioText";
-import type { ChatMessage } from "@/lib/storage";
 import React from "react";
 
 function extractTextFromChildren(children: React.ReactNode): string {
@@ -29,10 +32,33 @@ const SUGGESTIONS = [
   "What does the Quran say about patience?",
 ];
 
+function groupSessionsByDate(sessions: ChatSession[]) {
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const groups: { label: string; sessions: ChatSession[] }[] = [];
+  const todayS: ChatSession[] = [];
+  const yesterdayS: ChatSession[] = [];
+  const olderS: ChatSession[] = [];
+
+  for (const s of sessions) {
+    const date = s.updatedAt.split("T")[0];
+    if (date === today) todayS.push(s);
+    else if (date === yesterday) yesterdayS.push(s);
+    else olderS.push(s);
+  }
+  if (todayS.length) groups.push({ label: "Today", sessions: todayS });
+  if (yesterdayS.length) groups.push({ label: "Yesterday", sessions: yesterdayS });
+  if (olderS.length) groups.push({ label: "Older", sessions: olderS });
+  return groups;
+}
+
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>(getChatHistory());
+  const [sessionId, setSessionId] = useState<string | null>(getActiveSessionId());
+  const [messages, setMessages] = useState<ChatMessage[]>(sessionId ? getSessionMessages(sessionId) : []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>(getChatSessions());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,11 +66,48 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Reload messages when session changes
+  useEffect(() => {
+    if (sessionId) {
+      setMessages(getSessionMessages(sessionId));
+      setActiveSessionId(sessionId);
+    } else {
+      setMessages([]);
+    }
+  }, [sessionId]);
+
+  const refreshSessions = () => setSessions(getChatSessions());
+
+  const startNewChat = () => {
+    setActiveSessionId(null);
+    setSessionId(null);
+    setMessages([]);
+    setShowHistory(false);
+  };
+
+  const openSession = (id: string) => {
+    setSessionId(id);
+    setShowHistory(false);
+  };
+
+  const deleteSession = (id: string) => {
+    deleteChatSession(id);
+    refreshSessions();
+    if (sessionId === id) startNewChat();
+  };
+
   const send = async (text: string, mode?: "tajweed" | "analyze" | "read") => {
     if (!text.trim() || loading) return;
     setInput("");
 
-    const userMsg = saveChatMessage({ role: "user", content: text.trim() });
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const session = createChatSession(text.trim());
+      currentSessionId = session.id;
+      setSessionId(currentSessionId);
+    }
+
+    const userMsg = addMessageToSession(currentSessionId, { role: "user", content: text.trim() });
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
@@ -68,11 +131,12 @@ export default function ChatPage() {
           });
         },
         () => {
-          const aiMsg = saveChatMessage({ role: "assistant", content: assistantContent });
+          const aiMsg = addMessageToSession(currentSessionId!, { role: "assistant", content: assistantContent });
           setMessages((prev) => {
             const filtered = prev.filter((m) => m.id !== "streaming");
             return [...filtered, aiMsg];
           });
+          refreshSessions();
         },
         mode
       );
@@ -86,8 +150,7 @@ export default function ChatPage() {
 
   const handleAction = (action: "read" | "tajweed" | "analyze") => {
     const lastVerse = messages
-      .slice()
-      .reverse()
+      .slice().reverse()
       .find((m) => m.content.match(/\[\d+:\d+\]/));
     const verseMatch = lastVerse?.content.match(/\[(\d+:\d+)\]/);
     const verse = verseMatch ? verseMatch[1] : "";
@@ -103,7 +166,6 @@ export default function ChatPage() {
         ? `Deeply analyze verse [${verse}] — cover historical context (asbab al-nuzul), word-by-word breakdown, multiple tafsir perspectives, and practical lessons.`
         : "Analyze a powerful verse about patience and provide its full tafsir breakdown.",
     };
-
     send(prompts[action], action);
   };
 
@@ -112,25 +174,76 @@ export default function ChatPage() {
     toast.success("Copied to clipboard");
   };
 
-  const handleClear = () => {
-    clearChatHistory();
-    setMessages([]);
-    toast.success("Chat cleared");
-  };
+  // History panel
+  if (showHistory) {
+    const groups = groupSessionsByDate(sessions);
+    return (
+      <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium">Chat History</span>
+          </div>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={startNewChat}>
+            <Plus className="h-3 w-3" /> New Chat
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {groups.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center mt-8">No chat history yet</p>
+          )}
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="text-xs text-muted-foreground font-medium mb-2">{group.label}</p>
+              <div className="space-y-1">
+                {group.sessions.map((s) => (
+                  <div
+                    key={s.id}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2.5 cursor-pointer transition-colors hover:bg-secondary ${
+                      s.id === sessionId ? "bg-secondary" : ""
+                    }`}
+                    onClick={() => openSession(s.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{s.title}</p>
+                      <p className="text-xs text-muted-foreground">{s.messages.length} messages</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 flex-shrink-0"
+                      onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4" />
           <span className="text-sm font-medium">AI Mentor</span>
         </div>
-        {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={handleClear} className="gap-1 text-xs text-muted-foreground">
-            <Trash2 className="h-3 w-3" /> Clear
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => { refreshSessions(); setShowHistory(true); }} title="Chat History">
+            <History className="h-4 w-4" />
           </Button>
-        )}
+          <Button variant="ghost" size="icon" onClick={startNewChat} title="New Chat">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -153,8 +266,6 @@ export default function ChatPage() {
                 </button>
               ))}
             </div>
-
-            {/* Action Buttons */}
             <div className="flex gap-2 mt-6">
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleAction("read")}>
                 <BookOpen className="h-3.5 w-3.5" /> Read
@@ -229,7 +340,6 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-border space-y-2">
-        {/* Action buttons when chat has messages */}
         {messages.length > 0 && !loading && (
           <div className="flex gap-2 max-w-3xl mx-auto">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => handleAction("read")}>
