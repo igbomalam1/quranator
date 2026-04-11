@@ -8,8 +8,21 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import TajweedAudioText from "@/components/TajweedAudioText";
 import type { ChatMessage } from "@/lib/storage";
+import React from "react";
+
+function extractTextFromChildren(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (typeof children === "number") return String(children);
+  if (!children) return "";
+  if (Array.isArray(children)) return children.map(extractTextFromChildren).join("");
+  if (typeof children === "object" && "props" in (children as any)) {
+    return extractTextFromChildren((children as any).props?.children);
+  }
+  return String(children);
+}
 
 const SUGGESTIONS = [
+  "What can you help me do?",
   "What does Ayatul Kursi teach us?",
   "How can I build a daily Quran habit?",
   "Explain the meaning of Surah Al-Fatiha",
@@ -173,16 +186,14 @@ export default function ChatPage() {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      td: ({ children }) => (
-                        <td>
-                          <TajweedAudioText content={String(children)} />
-                        </td>
-                      ),
-                      p: ({ children }) => (
-                        <p>
-                          <TajweedAudioText content={String(children)} />
-                        </p>
-                      ),
+                      td: ({ children }) => {
+                        const text = extractTextFromChildren(children);
+                        return <td><TajweedAudioText content={text} /></td>;
+                      },
+                      p: ({ children }) => {
+                        const text = extractTextFromChildren(children);
+                        return <p><TajweedAudioText content={text} /></p>;
+                      },
                     }}
                   >
                     {msg.content}

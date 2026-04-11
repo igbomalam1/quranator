@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Flame, Play, Pause, BookOpen, Target } from "lucide-react";
-import { getStreakData, recordActivity, getReflections } from "@/lib/storage";
+import { Flame, Play, Pause, BookOpen, Target, Sparkles } from "lucide-react";
+import { getStreakData, recordActivity, getReflections, saveChatMessage } from "@/lib/storage";
 import { fetchVerseByKey, getRandomVerseKey, getCachedAyah, cacheAyah } from "@/lib/quran-api";
 import type { Verse } from "@/lib/quran-api";
 import { toast } from "sonner";
 
+const stripMarkdown = (text: string) =>
+  text.replace(/#{1,6}\s?/g, "").replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/^[-*]\s/gm, "• ");
+
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [streak, setStreak] = useState(getStreakData());
   const [ayah, setAyah] = useState<Verse | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -158,6 +163,18 @@ export default function DashboardPage() {
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">— {ayah.verse_key}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-1.5"
+                onClick={() => {
+                  const prompt = `This is today's Ayah of the Day: [${ayah.verse_key}] "${ayah.text_uthmani}". Explain why this verse is significant, its historical context (asbab al-nuzul), deep tafsir, and practical lessons we can apply today.`;
+                  saveChatMessage({ role: "user", content: prompt });
+                  navigate("/chat");
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Deep Learning
+              </Button>
             </div>
           ) : (
             <div className="h-20 flex items-center justify-center">
@@ -176,7 +193,7 @@ export default function DashboardPage() {
               {reflections.map((r) => (
                 <div key={r.id} className="text-sm">
                   <span className="text-muted-foreground text-xs">[{r.verseKey}]</span>
-                  <p className="text-muted-foreground mt-0.5">{r.text}</p>
+                  <p className="text-muted-foreground mt-0.5">{stripMarkdown(r.text)}</p>
                 </div>
               ))}
             </div>
