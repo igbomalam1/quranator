@@ -1,4 +1,4 @@
-import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal } from "lucide-react";
+import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal, GraduationCap } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +15,7 @@ import {
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: BarChart3 },
   { label: "AI Mentor", path: "/chat", icon: MessageSquare },
+  { label: "Quranator", path: "/quranator", icon: GraduationCap },
   { label: "Quran", path: "/quran", icon: Library },
   { label: "Goals", path: "/goals", icon: Target },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
@@ -24,10 +25,11 @@ const navItems = [
 const mobileNavItems = [
   { label: "Dashboard", path: "/dashboard", icon: BarChart3 },
   { label: "AI Mentor", path: "/chat", icon: MessageSquare },
-  { label: "Goals", path: "/goals", icon: Target },
+  { label: "Quranator", path: "/quranator", icon: GraduationCap },
 ];
 
 const moreItems = [
+  { label: "Goals", path: "/goals", icon: Target },
   { label: "Quran", path: "/quran", icon: Library },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
   { label: "Bookmarks", path: "/bookmarks", icon: Bookmark },
@@ -54,7 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </Button>
           <Link to="/dashboard" className="font-semibold text-sm tracking-tight">
-            Quran AI Mentor
+            Quranator
           </Link>
         </div>
 
