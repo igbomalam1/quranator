@@ -13,6 +13,7 @@ import BookmarksPage from "./pages/BookmarksPage";
 import QuranReaderPage from "./pages/QuranReaderPage";
 import GoalsPage from "./pages/GoalsPage";
 import QuranatorPage from "./pages/QuranatorPage";
+import QuranatorScorePage from "./pages/QuranatorScorePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
           <Route path="/quran" element={<ProtectedRoute><QuranReaderPage /></ProtectedRoute>} />
           <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
           <Route path="/quranator" element={<ProtectedRoute><QuranatorPage /></ProtectedRoute>} />
+          <Route path="/quranator-score" element={<ProtectedRoute><QuranatorScorePage /></ProtectedRoute>} />
           <Route path="/reflections" element={<ProtectedRoute><ReflectionsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
