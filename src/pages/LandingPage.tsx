@@ -34,7 +34,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       {/* Navbar */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <span className="font-semibold text-sm tracking-tight">Quran AI Mentor</span>
+        <span className="font-semibold text-sm tracking-tight">Quranator</span>
         <Button variant="outline" size="sm" onClick={handleLogin}>
           Sign In
         </Button>
@@ -43,7 +43,7 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="flex flex-col items-center justify-center text-center px-6 py-24 md:py-32 max-w-3xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight text-balance">
-          Your Personal Quran AI Mentor
+          Your Personal Quran AI Tutor
         </h1>
         <p className="mt-4 text-muted-foreground text-lg max-w-xl text-balance">
           Chat with an AI grounded in the real Quran. Build lifelong habits. Track your journey.
