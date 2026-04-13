@@ -14,6 +14,7 @@ import QuranReaderPage from "./pages/QuranReaderPage";
 import GoalsPage from "./pages/GoalsPage";
 import QuranatorPage from "./pages/QuranatorPage";
 import QuranatorScorePage from "./pages/QuranatorScorePage";
+import DocsPage from "./pages/DocsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/docs" element={<DocsPage />} />
           <Route path="/callback" element={<CallbackPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />

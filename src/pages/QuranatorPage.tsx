@@ -13,9 +13,29 @@ import {
   CheckCircle2,
   ArrowRight,
   Loader2,
+  Award,
+  Heart,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { saveScore } from "@/lib/quranator-scores";
+import { awardSadaqahPoints, getSadaqahData, getSadaqahDollars } from "@/lib/sadaqah-points";
+import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Goal {
   id: string;
@@ -55,7 +75,13 @@ interface ScoreResult {
   improvements: string[];
 }
 
+interface ReciterOption {
+  id: number;
+  name: string;
+}
+
 export default function QuranatorPage() {
+  const navigate = useNavigate();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0);
   const [verses, setVerses] = useState<VerseData[]>([]);
@@ -68,6 +94,13 @@ export default function QuranatorPage() {
   const [transcript, setTranscript] = useState("");
   const [scoring, setScoring] = useState(false);
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
+  const [hasListened, setHasListened] = useState(false);
+  const [hasRead, setHasRead] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [finalScore, setFinalScore] = useState<ScoreResult | null>(null);
+  const [sdqAwarded, setSdqAwarded] = useState(0);
+  const [reciters, setReciters] = useState<ReciterOption[]>([]);
+  const [selectedReciter, setSelectedReciter] = useState(7); // Default: Mishary Rashid Alafasy
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef("");
@@ -79,7 +112,20 @@ export default function QuranatorPage() {
       (g) => g.lastUpdated === today && g.completedToday < g.targetPerDay
     );
     setGoals(todayGoals.length > 0 ? todayGoals : allGoals);
+    fetchReciters();
   }, []);
+
+  const fetchReciters = async () => {
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase.functions.invoke("quran-proxy", {
+        body: { endpoint: "/resources/recitations" },
+      });
+      if (data?.recitations) {
+        setReciters(data.recitations.map((r: any) => ({ id: r.id, name: r.reciter_name || r.translated_name?.name || `Reciter ${r.id}` })));
+      }
+    } catch {}
+  };
 
   const currentGoal = goals[currentGoalIndex];
 
@@ -90,6 +136,10 @@ export default function QuranatorPage() {
     setGoalStarted(true);
     setScoreResult(null);
     setTranscript("");
+    setHasListened(false);
+    setHasRead(false);
+    setShowCompletion(false);
+    setFinalScore(null);
 
     try {
       const { supabase } = await import("@/integrations/supabase/client");
@@ -117,7 +167,7 @@ export default function QuranatorPage() {
         let audioUrl = "";
         try {
           const audioRes = await supabase.functions.invoke("quran-proxy", {
-            body: { endpoint: `/recitations/7/by_ayah/${key}` },
+            body: { endpoint: `/recitations/${selectedReciter}/by_ayah/${key}` },
           });
           if (audioRes.data?.audio_files?.[0]) {
             audioUrl = `https://verses.quran.com/${audioRes.data.audio_files[0].url}`;
@@ -143,6 +193,7 @@ export default function QuranatorPage() {
 
   const currentVerse = verses[currentVerseIndex];
   const arabicWords = currentVerse?.text_uthmani?.split(/\s+/) || [];
+  const isLastVerse = currentVerseIndex === verses.length - 1;
 
   const playAudio = () => {
     if (!currentVerse?.audio_url) {
@@ -183,6 +234,7 @@ export default function QuranatorPage() {
         setPlaying(false);
         setHighlightedWordIndex(-1);
         audioRef.current = null;
+        setHasListened(true);
       };
       audio.onerror = () => {
         clearInterval(timer);
@@ -201,11 +253,11 @@ export default function QuranatorPage() {
 
   const toggleRecording = () => {
     if (recording) {
-      // Stop recording and trigger AI scoring
       recognitionRef.current?.stop();
       setRecording(false);
       const finalTranscript = transcriptRef.current;
       setTranscript(finalTranscript);
+      setHasRead(true);
       if (finalTranscript.trim() && currentVerse) {
         scoreRecitation(finalTranscript);
       } else {
@@ -221,7 +273,6 @@ export default function QuranatorPage() {
       return;
     }
 
-    // Reset state
     setTranscript("");
     setScoreResult(null);
     transcriptRef.current = "";
@@ -248,7 +299,6 @@ export default function QuranatorPage() {
       transcriptRef.current = fullTranscript;
       setTranscript(fullTranscript);
 
-      // Highlight matching words
       const spokenWords = fullTranscript.split(/\s+/).filter(Boolean);
       const matchIndex = Math.min(spokenWords.length - 1, arabicWords.length - 1);
       setHighlightedWordIndex(matchIndex >= 0 ? matchIndex : -1);
@@ -267,9 +317,9 @@ export default function QuranatorPage() {
     };
 
     recognition.onend = () => {
-      // Only auto-score if we were still in recording mode (not manually stopped)
       if (recording) {
         setRecording(false);
+        setHasRead(true);
         const finalTranscript = transcriptRef.current;
         if (finalTranscript.trim() && currentVerse) {
           scoreRecitation(finalTranscript);
@@ -303,7 +353,6 @@ export default function QuranatorPage() {
       const result: ScoreResult = data;
       setScoreResult(result);
 
-      // Save score
       saveScore({
         goalTitle: currentGoal.title,
         verseKey: currentVerse.verse_key,
@@ -317,10 +366,22 @@ export default function QuranatorPage() {
         improvements: result.improvements,
       });
 
+      // Award SDQ points
+      const pts = awardSadaqahPoints(result.overallScore, currentVerse.verse_key);
+      if (pts > 0) {
+        setSdqAwarded(pts);
+      }
+
       if (result.overallScore >= 70) {
         toast.success(`Great recitation! Score: ${result.overallScore}/100 🌟`);
       } else {
         toast(`Score: ${result.overallScore}/100. Keep practicing! 💪`, { icon: "📖" });
+      }
+
+      // If last verse and both listened+read, show completion after scoring
+      if (isLastVerse) {
+        setFinalScore(result);
+        setTimeout(() => setShowCompletion(true), 1500);
       }
     } catch (err) {
       console.error("Scoring failed:", err);
@@ -328,6 +389,38 @@ export default function QuranatorPage() {
     } finally {
       setScoring(false);
     }
+  };
+
+  const handleNext = () => {
+    if (!hasListened || !hasRead) {
+      toast.error("Please Listen and Read before moving to the next verse.");
+      return;
+    }
+    audioRef.current?.pause();
+    recognitionRef.current?.stop();
+    setPlaying(false);
+    setRecording(false);
+    setHighlightedWordIndex(-1);
+    setScoreResult(null);
+    setTranscript("");
+    setHasListened(false);
+    setHasRead(false);
+    setSdqAwarded(0);
+    setCurrentVerseIndex((i) => i + 1);
+  };
+
+  const handlePrev = () => {
+    audioRef.current?.pause();
+    recognitionRef.current?.stop();
+    setPlaying(false);
+    setRecording(false);
+    setHighlightedWordIndex(-1);
+    setScoreResult(null);
+    setTranscript("");
+    setHasListened(false);
+    setHasRead(false);
+    setSdqAwarded(0);
+    setCurrentVerseIndex((i) => i - 1);
   };
 
   // Cleanup
@@ -347,18 +440,44 @@ export default function QuranatorPage() {
     return "text-red-400";
   };
 
+  const canAdvance = hasListened && hasRead;
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <GraduationCap className="h-6 w-6" /> Quranator
         </h1>
-        {totalGoals > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {completedGoals}/{totalGoals} goals done
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {totalGoals > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {completedGoals}/{totalGoals} goals done
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Reciter selector */}
+      {goalStarted && reciters.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Reciter:</span>
+          <Select
+            value={String(selectedReciter)}
+            onValueChange={(val) => setSelectedReciter(parseInt(val))}
+          >
+            <SelectTrigger className="w-48 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {reciters.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* No goals state */}
       {goals.length === 0 && (
@@ -456,6 +575,15 @@ export default function QuranatorPage() {
                   </span>
                 </div>
               )}
+              {/* Checklist */}
+              <div className="flex gap-3 mt-2">
+                <span className={`text-xs flex items-center gap-1 ${hasListened ? "text-green-500" : "text-muted-foreground"}`}>
+                  {hasListened ? <CheckCircle2 className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />} Listened
+                </span>
+                <span className={`text-xs flex items-center gap-1 ${hasRead ? "text-green-500" : "text-muted-foreground"}`}>
+                  {hasRead ? <CheckCircle2 className="h-3 w-3" /> : <Mic className="h-3 w-3" />} Read
+                </span>
+              </div>
             </CardContent>
           </Card>
 
@@ -519,16 +647,7 @@ export default function QuranatorPage() {
                       variant="outline"
                       size="icon"
                       disabled={currentVerseIndex === 0}
-                      onClick={() => {
-                        audioRef.current?.pause();
-                        recognitionRef.current?.stop();
-                        setPlaying(false);
-                        setRecording(false);
-                        setHighlightedWordIndex(-1);
-                        setScoreResult(null);
-                        setTranscript("");
-                        setCurrentVerseIndex((i) => i - 1);
-                      }}
+                      onClick={handlePrev}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -545,7 +664,7 @@ export default function QuranatorPage() {
                         </>
                       ) : (
                         <>
-                          <Mic className="h-4 w-4" /> Read
+                          <Mic className="h-4 w-4" /> Read {hasRead && <CheckCircle2 className="h-3 w-3 text-green-500" />}
                         </>
                       )}
                     </Button>
@@ -562,29 +681,43 @@ export default function QuranatorPage() {
                         </>
                       ) : (
                         <>
-                          <Volume2 className="h-4 w-4" /> Listen
+                          <Volume2 className="h-4 w-4" /> Listen {hasListened && <CheckCircle2 className="h-3 w-3 text-green-500" />}
                         </>
                       )}
                     </Button>
 
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      disabled={currentVerseIndex === verses.length - 1}
-                      onClick={() => {
-                        audioRef.current?.pause();
-                        recognitionRef.current?.stop();
-                        setPlaying(false);
-                        setRecording(false);
-                        setHighlightedWordIndex(-1);
-                        setScoreResult(null);
-                        setTranscript("");
-                        setCurrentVerseIndex((i) => i + 1);
-                      }}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+                    {isLastVerse ? (
+                      <Button
+                        variant="default"
+                        className="gap-2"
+                        disabled={!canAdvance}
+                        onClick={() => {
+                          if (!scoreResult && hasRead) {
+                            toast("Waiting for score results...");
+                          } else {
+                            setShowCompletion(true);
+                          }
+                        }}
+                      >
+                        <Award className="h-4 w-4" /> Finish
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={!canAdvance}
+                        onClick={handleNext}
+                        title={!canAdvance ? "Listen and Read first" : "Next verse"}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
+                  {!canAdvance && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      Complete both Listen and Read to continue
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -607,7 +740,6 @@ export default function QuranatorPage() {
                       <GraduationCap className="h-4 w-4" /> Recitation Score
                     </h3>
 
-                    {/* Score circles */}
                     <div className="grid grid-cols-4 gap-3 text-center">
                       {[
                         { label: "Overall", value: scoreResult.overallScore },
@@ -616,9 +748,7 @@ export default function QuranatorPage() {
                         { label: "Fluency", value: scoreResult.fluencyScore },
                       ].map((item) => (
                         <div key={item.label}>
-                          <div
-                            className={`text-2xl font-bold ${getScoreColor(item.value)}`}
-                          >
+                          <div className={`text-2xl font-bold ${getScoreColor(item.value)}`}>
                             {item.value}
                           </div>
                           <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -626,10 +756,15 @@ export default function QuranatorPage() {
                       ))}
                     </div>
 
-                    {/* Feedback */}
+                    {sdqAwarded > 0 && (
+                      <div className="flex items-center justify-center gap-2 bg-secondary/50 rounded-lg py-2">
+                        <Heart className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium">+{sdqAwarded} SDQ Points earned!</span>
+                      </div>
+                    )}
+
                     <p className="text-sm text-foreground">{scoreResult.feedback}</p>
 
-                    {/* Improvements */}
                     {scoreResult.improvements.length > 0 && (
                       <div>
                         <p className="text-xs font-medium text-muted-foreground mb-1">
@@ -646,7 +781,6 @@ export default function QuranatorPage() {
                       </div>
                     )}
 
-                    {/* Try again */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -654,6 +788,8 @@ export default function QuranatorPage() {
                       onClick={() => {
                         setScoreResult(null);
                         setTranscript("");
+                        setHasRead(false);
+                        setSdqAwarded(0);
                       }}
                     >
                       Try Again
@@ -669,6 +805,52 @@ export default function QuranatorPage() {
           )}
         </div>
       )}
+
+      {/* Completion Dialog */}
+      <Dialog open={showCompletion} onOpenChange={setShowCompletion}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-center justify-center">
+              <Award className="h-6 w-6 text-green-500" /> Lesson Complete! 🎉
+            </DialogTitle>
+            <DialogDescription className="text-center space-y-3 pt-4">
+              <p className="text-foreground font-medium">
+                You completed all {verses.length} verse{verses.length > 1 ? "s" : ""} for "{currentGoal?.title}"
+              </p>
+              {finalScore && (
+                <div className="bg-secondary/50 rounded-lg p-4">
+                  <div className={`text-4xl font-bold ${getScoreColor(finalScore.overallScore)}`}>
+                    {finalScore.overallScore}%
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">Final Score</p>
+                </div>
+              )}
+              <div className="bg-secondary/50 rounded-lg p-3 flex items-center justify-center gap-2">
+                <Heart className="h-4 w-4 text-green-500" />
+                <span className="text-sm">
+                  Total SDQ Points: <strong>{getSadaqahData().totalPoints}</strong> (${getSadaqahDollars()} sadaqah value)
+                </span>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-col gap-2">
+            <Button className="w-full gap-2" onClick={() => { setShowCompletion(false); navigate("/quranator-score"); }}>
+              <Award className="h-4 w-4" /> View Quranator Score
+            </Button>
+            <Button variant="outline" className="w-full gap-2" onClick={() => {
+              setShowCompletion(false);
+              setGoalStarted(false);
+              setScoreResult(null);
+              setTranscript("");
+              setHasListened(false);
+              setHasRead(false);
+              setSdqAwarded(0);
+            }}>
+              <RefreshCw className="h-4 w-4" /> Start New Goal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
