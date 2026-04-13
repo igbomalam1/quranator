@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Copy, Trash2, Sparkles, BookOpen, Languages, Search, Plus, History, ChevronLeft, X } from "lucide-react";
+import { Send, Copy, Sparkles, BookOpen, Languages, Search, Plus, History, ChevronLeft, X } from "lucide-react";
 import remarkGfm from "remark-gfm";
 import {
   getChatSessions, getSessionMessages, addMessageToSession,
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import TajweedAudioText from "@/components/TajweedAudioText";
 import React from "react";
+import { useSearchParams } from "react-router-dom";
 
 function extractTextFromChildren(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -53,6 +54,7 @@ function groupSessionsByDate(sessions: ChatSession[]) {
 }
 
 export default function ChatPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(getActiveSessionId());
   const [messages, setMessages] = useState<ChatMessage[]>(sessionId ? getSessionMessages(sessionId) : []);
   const [input, setInput] = useState("");
@@ -61,6 +63,7 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>(getChatSessions());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoSendTriggered = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -75,6 +78,22 @@ export default function ChatPage() {
       setMessages([]);
     }
   }, [sessionId]);
+
+  // Auto-send for deep learning
+  useEffect(() => {
+    if (autoSendTriggered.current) return;
+    const autoSend = searchParams.get("autoSend");
+    if (autoSend === "true" && sessionId) {
+      const msgs = getSessionMessages(sessionId);
+      // Only auto-send if there's exactly 1 user message and no assistant response
+      if (msgs.length === 1 && msgs[0].role === "user") {
+        autoSendTriggered.current = true;
+        setSearchParams({}, { replace: true });
+        // Trigger AI response for the existing user message
+        triggerAIResponse(sessionId, msgs[0].content, []);
+      }
+    }
+  }, [sessionId, searchParams]);
 
   const refreshSessions = () => setSessions(getChatSessions());
 
@@ -96,28 +115,14 @@ export default function ChatPage() {
     if (sessionId === id) startNewChat();
   };
 
-  const send = async (text: string, mode?: "tajweed" | "analyze" | "read") => {
-    if (!text.trim() || loading) return;
-    setInput("");
-
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      const session = createChatSession(text.trim());
-      currentSessionId = session.id;
-      setSessionId(currentSessionId);
-    }
-
-    const userMsg = addMessageToSession(currentSessionId, { role: "user", content: text.trim() });
-    setMessages((prev) => [...prev, userMsg]);
+  const triggerAIResponse = async (sid: string, text: string, history: { role: string; content: string }[]) => {
     setLoading(true);
-
     let assistantContent = "";
 
     try {
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
       await streamChatMessage(
-        text.trim(),
-        history,
+        text,
+        history as any,
         (chunk) => {
           assistantContent += chunk;
           setMessages((prev) => {
@@ -131,14 +136,13 @@ export default function ChatPage() {
           });
         },
         () => {
-          const aiMsg = addMessageToSession(currentSessionId!, { role: "assistant", content: assistantContent });
+          const aiMsg = addMessageToSession(sid, { role: "assistant", content: assistantContent });
           setMessages((prev) => {
             const filtered = prev.filter((m) => m.id !== "streaming");
             return [...filtered, aiMsg];
           });
           refreshSessions();
         },
-        mode
       );
     } catch (err: any) {
       toast.error(err?.message || "Failed to get response");
@@ -146,6 +150,24 @@ export default function ChatPage() {
       setLoading(false);
       inputRef.current?.focus();
     }
+  };
+
+  const send = async (text: string, mode?: "tajweed" | "analyze" | "read") => {
+    if (!text.trim() || loading) return;
+    setInput("");
+
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const session = createChatSession(text.trim());
+      currentSessionId = session.id;
+      setSessionId(currentSessionId);
+    }
+
+    const userMsg = addMessageToSession(currentSessionId, { role: "user", content: text.trim() });
+    setMessages((prev) => [...prev, userMsg]);
+
+    const history = messages.map((m) => ({ role: m.role, content: m.content }));
+    await triggerAIResponse(currentSessionId, text.trim(), history);
   };
 
   const handleAction = (action: "read" | "tajweed" | "analyze") => {

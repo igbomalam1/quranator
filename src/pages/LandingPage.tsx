@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpen, MessageSquare, BarChart3, Bookmark, ArrowRight, ChevronDown } from "lucide-react";
+import { BookOpen, MessageSquare, BarChart3, Bookmark, ArrowRight, ChevronDown, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { initiateOAuth, demoLogin, isAuthenticated } from "@/lib/auth";
 import { useEffect } from "react";
@@ -35,9 +35,14 @@ export default function LandingPage() {
       {/* Navbar */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border">
         <span className="font-semibold text-sm tracking-tight">Quranator</span>
-        <Button variant="outline" size="sm" onClick={handleLogin}>
-          Sign In
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/docs")}>
+            <FileText className="h-3.5 w-3.5" /> Docs
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleLogin}>
+            Sign In
+          </Button>
+        </div>
       </header>
 
       {/* Hero */}
