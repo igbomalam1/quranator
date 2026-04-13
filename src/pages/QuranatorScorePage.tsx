@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Award, TrendingUp, Calendar, BookOpen } from "lucide-react";
+import { Award, TrendingUp, BookOpen, Heart } from "lucide-react";
 import { getScores, getAverageScore, getTodayScores, type RecitationScore } from "@/lib/quranator-scores";
+import { getSadaqahData, getSadaqahDollars } from "@/lib/sadaqah-points";
 
 function ScoreBar({ label, value }: { label: string; value: number }) {
   const color =
@@ -25,7 +26,8 @@ export default function QuranatorScorePage() {
   const [filter, setFilter] = useState<"all" | "today">("today");
   const allScores = getScores();
   const todayScores = getTodayScores();
-  const avgScore = getAverageScore();
+  const sdqData = getSadaqahData();
+  const sdqDollars = getSadaqahDollars();
 
   const scores = filter === "today" ? todayScores : allScores;
 
@@ -54,6 +56,23 @@ export default function QuranatorScorePage() {
           <Award className="h-6 w-6" /> Quranator Score
         </h1>
       </div>
+
+      {/* SDQ Points Card */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Heart className="h-5 w-5 text-green-500" />
+            <div>
+              <p className="text-lg font-bold">{sdqData.totalPoints} SDQ</p>
+              <p className="text-xs text-muted-foreground">Sadaqah Points</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold">${sdqDollars}</p>
+            <p className="text-xs text-muted-foreground">Sadaqah value</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filter tabs */}
       <div className="flex gap-2">
@@ -146,6 +165,15 @@ export default function QuranatorScorePage() {
           </Button>
         </div>
       )}
+
+      {/* SDQ Info */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-4 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground text-sm">About Sadaqah Points (SDQ)</p>
+          <p>Score above 49% on any recitation to earn SDQ points. Higher scores earn more points.</p>
+          <p>1,000 SDQ = $1 worth of suggested sadaqah donation. This is a faithful conversion to encourage sincere giving — fii sabilillah. 🤲</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
