@@ -690,16 +690,58 @@ export default function QuranatorPage() {
                       <Button
                         variant="default"
                         className="gap-2"
-                        disabled={!canAdvance}
-                        onClick={() => {
-                          if (!scoreResult && hasRead) {
-                            toast("Waiting for score results...");
-                          } else {
+                        disabled={!canAdvance || scoring}
+                        onClick={async () => {
+                          if (scoring) return;
+                          // If we already have a score, show completion
+                          if (scoreResult) {
+                            setFinalScore(scoreResult);
                             setShowCompletion(true);
+                            return;
+                          }
+                          // If read but no score yet, trigger scoring now
+                          if (hasRead && transcript.trim() && currentVerse) {
+                            setScoring(true);
+                            try {
+                              const { supabase } = await import("@/integrations/supabase/client");
+                              const { data, error } = await supabase.functions.invoke("score-recitation", {
+                                body: {
+                                  arabicText: currentVerse.text_uthmani,
+                                  userTranscript: transcript,
+                                  verseKey: currentVerse.verse_key,
+                                },
+                              });
+                              if (error) throw error;
+                              const result: ScoreResult = data;
+                              setScoreResult(result);
+                              saveScore({
+                                goalTitle: currentGoal!.title,
+                                verseKey: currentVerse.verse_key,
+                                arabicText: currentVerse.text_uthmani,
+                                userTranscript: transcript,
+                                accuracy: result.accuracy,
+                                tajweedScore: result.tajweedScore,
+                                fluencyScore: result.fluencyScore,
+                                overallScore: result.overallScore,
+                                feedback: result.feedback,
+                                improvements: result.improvements,
+                              });
+                              const pts = awardSadaqahPoints(result.overallScore, currentVerse.verse_key);
+                              if (pts > 0) setSdqAwarded(pts);
+                              setFinalScore(result);
+                              setShowCompletion(true);
+                            } catch (err) {
+                              console.error("Scoring failed:", err);
+                              toast.error("Failed to score recitation. Try again.");
+                            } finally {
+                              setScoring(false);
+                            }
+                          } else {
+                            toast.error("Please read the verse aloud first.");
                           }
                         }}
                       >
-                        <Award className="h-4 w-4" /> Finish
+                        {scoring ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />} Finish
                       </Button>
                     ) : (
                       <Button
