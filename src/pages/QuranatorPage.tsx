@@ -253,16 +253,21 @@ export default function QuranatorPage() {
 
   const toggleRecording = () => {
     if (recording) {
+      // User clicked Stop — flag that we're manually stopping
+      (recognitionRef.current as any).__manuallyStopped = true;
       recognitionRef.current?.stop();
       setRecording(false);
-      const finalTranscript = transcriptRef.current;
-      setTranscript(finalTranscript);
-      setHasRead(true);
-      if (finalTranscript.trim() && currentVerse) {
-        scoreRecitation(finalTranscript);
-      } else {
-        toast("No speech detected. Try reading the verse aloud again.", { icon: "🎤" });
-      }
+      // Give a brief delay for final results to arrive
+      setTimeout(() => {
+        const finalTranscript = transcriptRef.current;
+        setTranscript(finalTranscript);
+        if (finalTranscript.trim() && currentVerse) {
+          setHasRead(true);
+          scoreRecitation(finalTranscript);
+        } else {
+          toast("No speech was captured. Make sure your microphone is working and try reading louder.", { icon: "🎤" });
+        }
+      }, 500);
       return;
     }
 
@@ -281,6 +286,7 @@ export default function QuranatorPage() {
     recognition.lang = "ar-SA";
     recognition.continuous = true;
     recognition.interimResults = true;
+    (recognition as any).__manuallyStopped = false;
 
     recognition.onresult = (event: any) => {
       let finalText = "";
@@ -306,22 +312,25 @@ export default function QuranatorPage() {
 
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error);
+      if (event.error === "no-speech") {
+        // Don't stop — just ignore, user may still be preparing to read
+        return;
+      }
       setRecording(false);
       if (event.error === "not-allowed") {
-        toast.error("Microphone access denied. Please allow mic access.");
-      } else if (event.error === "no-speech") {
-        toast("No speech detected. Try again.", { icon: "🎤" });
+        toast.error("Microphone access denied. Please allow mic access in browser settings.");
       } else {
         toast.error(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
-      if (recording) {
+      // Only auto-process if not manually stopped (manual stop handled in toggleRecording)
+      if (!(recognition as any).__manuallyStopped) {
         setRecording(false);
-        setHasRead(true);
         const finalTranscript = transcriptRef.current;
         if (finalTranscript.trim() && currentVerse) {
+          setHasRead(true);
           scoreRecitation(finalTranscript);
         }
       }
