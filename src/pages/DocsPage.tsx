@@ -1,20 +1,20 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, MessageSquare, Target, Bookmark, GraduationCap, Award, Flame, Shield, Mic } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, Target, Bookmark, GraduationCap, Award, Flame, Shield, Mic, Database } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const sections = [
   {
     icon: GraduationCap,
     title: "Quranator AI Tutor",
-    desc: "Interactive learning that fetches your goals, loads verses from the Quran Content API, plays audio recitations, and lets you practice reading with speech recognition. AI scores your recitation on accuracy, tajweed, and fluency.",
+    desc: "Interactive learning that fetches your goals, loads verses from the Quran Content API, plays audio recitations with word-by-word highlighting, and lets you practice reading with speech recognition. AI scores your recitation on accuracy, tajweed, and fluency.",
     apis: ["Quran Verses API (by_chapter, by_key)", "Audio/Recitations API", "Reciter metadata"],
   },
   {
     icon: MessageSquare,
     title: "AI Mentor Chat",
     desc: "Chat with an AI grounded in real Quran verses. Supports tajweed analysis, deep verse analysis, and reading mode. All responses cite actual verses with links to Quran.com.",
-    apis: ["Lovable AI Gateway (Gemini)", "Quran Content API for verse references"],
+    apis: ["AI Integration (Gemini)", "Quran Content API for verse references"],
   },
   {
     icon: BookOpen,
@@ -32,7 +32,7 @@ const sections = [
     icon: Award,
     title: "Quranator Score & SDQ Points",
     desc: "AI-powered recitation scoring with grades (A+ to D). Earn Sadaqah Points (SDQ) for scores above 49% — 1000 SDQ = $1 worth of suggested sadaqah donation.",
-    apis: ["score-recitation Edge Function", "Lovable AI Gateway"],
+    apis: ["score-recitation Edge Function", "AI Integration"],
   },
   {
     icon: Bookmark,
@@ -76,7 +76,7 @@ export default function DocsPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Quranator</h1>
           <p className="text-muted-foreground">
-            A comprehensive Quran AI companion built for the Quran.com Hackathon. Below is a summary of every feature and the specific APIs used.
+            A comprehensive Quran AI companion built for the Quran.com Hackathon. Quranator is designed to keep users deeply engaged with the Quran <strong>beyond Ramadan</strong> — building daily habits, accountability through Sadaqah pledges, and personalized AI-powered learning that makes Quran study a year-round commitment, not a seasonal one.
           </p>
         </div>
 
@@ -136,17 +136,47 @@ export default function DocsPage() {
           ))}
         </div>
 
+        {/* Data Storage Section */}
+        <Card className="bg-card border-border">
+          <CardContent className="p-6 space-y-2">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Database className="h-5 w-5" /> Data Storage Approach
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              User data (goals, scores, bookmarks, reflections, streaks) is currently stored in the browser's <strong>localStorage</strong>. This was a deliberate choice for the hackathon phase to ensure:
+            </p>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li><strong>Zero-latency experience</strong> — all reads and writes are instant with no network round-trips, keeping the learning flow uninterrupted.</li>
+              <li><strong>Offline-first capability</strong> — users can continue studying even without an internet connection; data syncs when they're back online.</li>
+              <li><strong>Privacy by default</strong> — sensitive learning data stays on the user's device until they explicitly opt into cloud sync.</li>
+              <li><strong>Rapid iteration</strong> — no database migrations needed during the hackathon, allowing faster feature development.</li>
+            </ul>
+            <p className="text-sm text-muted-foreground mt-2">
+              In the production release, localStorage will be replaced with a cloud database for cross-device sync, data backup, and multi-user features like leaderboards.
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="bg-card border-border">
           <CardContent className="p-6 space-y-2">
             <h2 className="text-lg font-semibold">Technical Stack</h2>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
               <li>React 18 + TypeScript + Vite + Tailwind CSS</li>
               <li>Supabase Edge Functions (chat proxy, Quran API proxy, recitation scoring)</li>
-              <li>Lovable AI Gateway (Gemini models for chat and scoring)</li>
+              <li>AI integration for intelligent chat, verse analysis, and recitation scoring</li>
               <li>Quran.com API v4 (Content + Audio + Translations)</li>
               <li>Web Speech API (SpeechRecognition for Arabic recitation capture)</li>
-              <li>LocalStorage for offline-first user data persistence</li>
+              <li>LocalStorage for offline-first user data persistence (cloud database planned)</li>
             </ul>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardContent className="p-6 space-y-2">
+            <h2 className="text-lg font-semibold">🌙 Beyond Ramadan</h2>
+            <p className="text-sm text-muted-foreground">
+              Quranator isn't just a Ramadan tool — it's built to be your <strong>lifelong Quran companion</strong>. With daily goals, streak accountability, Sadaqah pledges, AI-powered tutoring, and recitation scoring, every feature is designed to make Quran study a consistent daily habit. Miss a day? The app holds you accountable with sincere sadaqah reminders. Score well? You earn SDQ points as motivation to keep going. The goal is simple: keep you connected to the Quran, every single day.
+            </p>
           </CardContent>
         </Card>
 
