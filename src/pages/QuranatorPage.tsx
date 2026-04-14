@@ -466,27 +466,7 @@ export default function QuranatorPage() {
         </div>
       </div>
 
-      {/* Reciter selector */}
-      {goalStarted && reciters.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Reciter:</span>
-          <Select
-            value={String(selectedReciter)}
-            onValueChange={(val) => setSelectedReciter(parseInt(val))}
-          >
-            <SelectTrigger className="w-48 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {reciters.map((r) => (
-                <SelectItem key={r.id} value={String(r.id)}>
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {/* Reciter selector removed from here — now inside verse card */}
 
       {/* No goals state */}
       {goals.length === 0 && (
@@ -605,10 +585,44 @@ export default function QuranatorPage() {
             <>
               <Card className="bg-card border-border">
                 <CardContent className="p-6 space-y-6">
-                  <div className="text-center">
+                  <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
                       {currentVerse.verse_key}
                     </span>
+                    {reciters.length > 0 && (
+                      <Select
+                        value={String(selectedReciter)}
+                        onValueChange={async (val) => {
+                          const reciterId = parseInt(val);
+                          setSelectedReciter(reciterId);
+                          if (!currentVerse) return;
+                          try {
+                            const { supabase } = await import("@/integrations/supabase/client");
+                            const audioRes = await supabase.functions.invoke("quran-proxy", {
+                              body: { endpoint: `/recitations/${reciterId}/by_ayah/${currentVerse.verse_key}` },
+                            });
+                            if (audioRes.data?.audio_files?.[0]) {
+                              const url = `https://verses.quran.com/${audioRes.data.audio_files[0].url}`;
+                              setVerses(prev => prev.map((v, i) => i === currentVerseIndex ? { ...v, audio_url: url } : v));
+                              toast.success("Reciter changed");
+                            }
+                          } catch {
+                            toast.error("Failed to change reciter");
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-40 h-7 text-xs">
+                          <SelectValue placeholder="Reciter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {reciters.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {/* Arabic text with word highlighting */}

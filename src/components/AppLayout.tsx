@@ -153,6 +153,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Main content */}
         <main className="flex-1 overflow-auto pb-20 md:pb-0">
           {children}
+          {/* Footer */}
+          <footer className="py-6 mt-10 border-t border-border text-center">
+            <p className="text-xs text-muted-foreground">
+              Designed by <span className="font-medium text-foreground">Devi Software Solutions</span> and team
+            </p>
+          </footer>
         </main>
       </div>
     </div>
