@@ -253,16 +253,21 @@ export default function QuranatorPage() {
 
   const toggleRecording = () => {
     if (recording) {
+      // User clicked Stop — flag that we're manually stopping
+      (recognitionRef.current as any).__manuallyStopped = true;
       recognitionRef.current?.stop();
       setRecording(false);
-      const finalTranscript = transcriptRef.current;
-      setTranscript(finalTranscript);
-      setHasRead(true);
-      if (finalTranscript.trim() && currentVerse) {
-        scoreRecitation(finalTranscript);
-      } else {
-        toast("No speech detected. Try reading the verse aloud again.", { icon: "🎤" });
-      }
+      // Give a brief delay for final results to arrive
+      setTimeout(() => {
+        const finalTranscript = transcriptRef.current;
+        setTranscript(finalTranscript);
+        if (finalTranscript.trim() && currentVerse) {
+          setHasRead(true);
+          scoreRecitation(finalTranscript);
+        } else {
+          toast("No speech was captured. Make sure your microphone is working and try reading louder.", { icon: "🎤" });
+        }
+      }, 500);
       return;
     }
 
@@ -281,6 +286,7 @@ export default function QuranatorPage() {
     recognition.lang = "ar-SA";
     recognition.continuous = true;
     recognition.interimResults = true;
+    (recognition as any).__manuallyStopped = false;
 
     recognition.onresult = (event: any) => {
       let finalText = "";
@@ -306,22 +312,25 @@ export default function QuranatorPage() {
 
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error);
+      if (event.error === "no-speech") {
+        // Don't stop — just ignore, user may still be preparing to read
+        return;
+      }
       setRecording(false);
       if (event.error === "not-allowed") {
-        toast.error("Microphone access denied. Please allow mic access.");
-      } else if (event.error === "no-speech") {
-        toast("No speech detected. Try again.", { icon: "🎤" });
+        toast.error("Microphone access denied. Please allow mic access in browser settings.");
       } else {
         toast.error(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
-      if (recording) {
+      // Only auto-process if not manually stopped (manual stop handled in toggleRecording)
+      if (!(recognition as any).__manuallyStopped) {
         setRecording(false);
-        setHasRead(true);
         const finalTranscript = transcriptRef.current;
         if (finalTranscript.trim() && currentVerse) {
+          setHasRead(true);
           scoreRecitation(finalTranscript);
         }
       }
@@ -457,27 +466,7 @@ export default function QuranatorPage() {
         </div>
       </div>
 
-      {/* Reciter selector */}
-      {goalStarted && reciters.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Reciter:</span>
-          <Select
-            value={String(selectedReciter)}
-            onValueChange={(val) => setSelectedReciter(parseInt(val))}
-          >
-            <SelectTrigger className="w-48 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {reciters.map((r) => (
-                <SelectItem key={r.id} value={String(r.id)}>
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {/* Reciter selector removed from here — now inside verse card */}
 
       {/* No goals state */}
       {goals.length === 0 && (
@@ -596,10 +585,44 @@ export default function QuranatorPage() {
             <>
               <Card className="bg-card border-border">
                 <CardContent className="p-6 space-y-6">
-                  <div className="text-center">
+                  <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
                       {currentVerse.verse_key}
                     </span>
+                    {reciters.length > 0 && (
+                      <Select
+                        value={String(selectedReciter)}
+                        onValueChange={async (val) => {
+                          const reciterId = parseInt(val);
+                          setSelectedReciter(reciterId);
+                          if (!currentVerse) return;
+                          try {
+                            const { supabase } = await import("@/integrations/supabase/client");
+                            const audioRes = await supabase.functions.invoke("quran-proxy", {
+                              body: { endpoint: `/recitations/${reciterId}/by_ayah/${currentVerse.verse_key}` },
+                            });
+                            if (audioRes.data?.audio_files?.[0]) {
+                              const url = `https://verses.quran.com/${audioRes.data.audio_files[0].url}`;
+                              setVerses(prev => prev.map((v, i) => i === currentVerseIndex ? { ...v, audio_url: url } : v));
+                              toast.success("Reciter changed");
+                            }
+                          } catch {
+                            toast.error("Failed to change reciter");
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-40 h-7 text-xs">
+                          <SelectValue placeholder="Reciter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {reciters.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {/* Arabic text with word highlighting */}
