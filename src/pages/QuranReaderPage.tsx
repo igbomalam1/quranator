@@ -99,6 +99,12 @@ export default function QuranReaderPage() {
                 {v.verse_key}
               </a>
               <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                  const [ch, ay] = v.verse_key.split(":");
+                  navigate(`/quranator?surah=${ch}&ayah=${ay}`);
+                }} title="Practice in Quranator">
+                  <GraduationCap className="h-3 w-3" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleAudio(v)}>
                   {playingKey === v.verse_key ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                 </Button>
