@@ -14,6 +14,7 @@ import QuranReaderPage from "./pages/QuranReaderPage";
 import GoalsPage from "./pages/GoalsPage";
 import QuranatorPage from "./pages/QuranatorPage";
 import QuranatorScorePage from "./pages/QuranatorScorePage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 import DocsPage from "./pages/DocsPage";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
           <Route path="/quranator" element={<ProtectedRoute><QuranatorPage /></ProtectedRoute>} />
           <Route path="/quranator-score" element={<ProtectedRoute><QuranatorScorePage /></ProtectedRoute>} />
+          <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
           <Route path="/reflections" element={<ProtectedRoute><ReflectionsPage /></ProtectedRoute>} />
           <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

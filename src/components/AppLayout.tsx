@@ -1,4 +1,4 @@
-import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal, GraduationCap, Award } from "lucide-react";
+import { BookOpen, MessageSquare, BarChart3, Bookmark, Flame, LogOut, Menu, Library, Target, MoreHorizontal, GraduationCap, Award, Trophy } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,6 +17,7 @@ const navItems = [
   { label: "AI Mentor", path: "/chat", icon: MessageSquare },
   { label: "Quranator", path: "/quranator", icon: GraduationCap },
   { label: "Quranator Score", path: "/quranator-score", icon: Award },
+  { label: "Leaderboard", path: "/leaderboard", icon: Trophy },
   { label: "Quran", path: "/quran", icon: Library },
   { label: "Goals", path: "/goals", icon: Target },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
@@ -32,6 +33,7 @@ const mobileNavItems = [
 const moreItems = [
   { label: "Goals", path: "/goals", icon: Target },
   { label: "Quranator Score", path: "/quranator-score", icon: Award },
+  { label: "Leaderboard", path: "/leaderboard", icon: Trophy },
   { label: "Quran", path: "/quran", icon: Library },
   { label: "Reflections", path: "/reflections", icon: BookOpen },
   { label: "Bookmarks", path: "/bookmarks", icon: Bookmark },
