@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 export default function QuranReaderPage() {
+  const navigate = useNavigate();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [verses, setVerses] = useState<Verse[]>([]);
