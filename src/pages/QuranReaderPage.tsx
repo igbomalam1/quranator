@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronLeft, Play, Pause, Bookmark } from "lucide-react";
+import { Search, ChevronLeft, Play, Pause, Bookmark, GraduationCap } from "lucide-react";
 import { fetchChapters, fetchVersesByChapter, searchQuran, getQuranComLink } from "@/lib/quran-api";
 import type { Chapter, Verse } from "@/lib/quran-api";
 import { saveBookmark, getBookmarks } from "@/lib/storage";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function QuranReaderPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
