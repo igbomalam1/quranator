@@ -137,6 +137,11 @@ export default function QuranReaderPage() {
         {selectedChapter && (
           <span className="text-muted-foreground text-lg font-serif">{selectedChapter.name_arabic}</span>
         )}
+        {selectedChapter && (
+          <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={() => navigate(`/quranator?surah=${selectedChapter.id}`)}>
+            <GraduationCap className="h-3.5 w-3.5" /> Practice
+          </Button>
+        )}
       </div>
 
       {/* Search */}
