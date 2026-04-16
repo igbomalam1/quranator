@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronLeft, Play, Pause, Bookmark } from "lucide-react";
+import { Search, ChevronLeft, Play, Pause, Bookmark, GraduationCap } from "lucide-react";
 import { fetchChapters, fetchVersesByChapter, searchQuran, getQuranComLink } from "@/lib/quran-api";
 import type { Chapter, Verse } from "@/lib/quran-api";
 import { saveBookmark, getBookmarks } from "@/lib/storage";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function QuranReaderPage() {
+  const navigate = useNavigate();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [verses, setVerses] = useState<Verse[]>([]);
@@ -97,6 +99,12 @@ export default function QuranReaderPage() {
                 {v.verse_key}
               </a>
               <div className="flex gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                  const [ch, ay] = v.verse_key.split(":");
+                  navigate(`/quranator?surah=${ch}&ayah=${ay}`);
+                }} title="Practice in Quranator">
+                  <GraduationCap className="h-3 w-3" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleAudio(v)}>
                   {playingKey === v.verse_key ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                 </Button>
@@ -128,6 +136,11 @@ export default function QuranReaderPage() {
         </h1>
         {selectedChapter && (
           <span className="text-muted-foreground text-lg font-serif">{selectedChapter.name_arabic}</span>
+        )}
+        {selectedChapter && (
+          <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={() => navigate(`/quranator?surah=${selectedChapter.id}`)}>
+            <GraduationCap className="h-3.5 w-3.5" /> Practice
+          </Button>
         )}
       </div>
 
