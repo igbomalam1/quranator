@@ -126,3 +126,80 @@ export function cacheAyah(verse: Verse) {
   const today = new Date().toISOString().split("T")[0];
   localStorage.setItem(AYAH_CACHE_KEY, JSON.stringify({ verse, date: today }));
 }
+
+// ============================================================================
+// QURAN FOUNDATION USER APIs (Bookmarks & Reading Progress)
+// ============================================================================
+
+export async function syncUserBookmarkToFoundation(verseKey: string, qfToken?: string): Promise<boolean> {
+  // Secondary fallback: If no Foundation OAuth token is provided, fail silently
+  if (!qfToken) return false;
+  
+  try {
+    const response = await fetch("https://api.quran.com/api/v4/users/bookmarks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${qfToken}`
+      },
+      body: JSON.stringify({ verse_key: verseKey })
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Quran Foundation User API Error (Bookmarks):", error);
+    return false;
+  }
+}
+
+export async function syncReadingProgressToFoundation(chapter: number, verse: number, qfToken?: string): Promise<boolean> {
+  if (!qfToken) return false;
+  
+  try {
+    const response = await fetch("https://api.quran.com/api/v4/users/reading_sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${qfToken}`
+      },
+      body: JSON.stringify({ chapter_id: chapter, verse_id: verse })
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Quran Foundation User API Error (Reading Sessions):", error);
+    return false;
+  }
+}
+
+// Multi-layered sync mapping Local Storage First + Quran Foundation User API Second
+export async function saveQuranBookmark(verseKey: string, qfToken?: string) {
+  // 1. Primary Priority: Save locally 
+  try {
+    const existingStr = localStorage.getItem("quranator_bookmarks");
+    const bookmarks = existingStr ? JSON.parse(existingStr) : [];
+    if (!bookmarks.includes(verseKey)) {
+      bookmarks.push(verseKey);
+      localStorage.setItem("quranator_bookmarks", JSON.stringify(bookmarks));
+    }
+  } catch (e) {
+    console.warn("Local storage unavailable", e);
+  }
+
+  // 2. Secondary Sync: Push to Quran Foundation Profile
+  await syncUserBookmarkToFoundation(verseKey, qfToken);
+}
+
+export async function saveQuranReadingProgress(chapter: number, verse: number, qfToken?: string) {
+  // 1. Primary Priority: Save locally
+  try {
+    localStorage.setItem("quranator_last_read", JSON.stringify({ 
+      chapter, 
+      verse, 
+      timestamp: new Date().toISOString() 
+    }));
+  } catch (e) {
+    console.warn("Local storage unavailable", e);
+  }
+
+  // 2. Secondary Sync: Push to Quran Foundation Profile
+  await syncReadingProgressToFoundation(chapter, verse, qfToken);
+}
