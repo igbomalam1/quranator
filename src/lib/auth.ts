@@ -1,13 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Auth credentials
-const QURAN_AUTH_BASE = import.meta.env.VITE_QURAN_AUTH_BASE;
-const CLIENT_ID = import.meta.env.VITE_QURAN_CLIENT_ID;
+// Auth credentials with runtime safety fallback cascade
+const QURAN_AUTH_BASE = import.meta.env.VITE_QURAN_AUTH_BASE || "https://oauth2.quran.foundation";
+const CLIENT_ID = import.meta.env.VITE_QURAN_CLIENT_ID || "74b4fce7-1591-401d-93de-c27a2b0cac85";
 
-const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE;
-const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID;
+const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE || "https://prelive-oauth2.quran.foundation";
+const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID || "9c656e3f-4cd0-4588-af77-dcf96da42264";
 
-const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI;
+// Dynamically compute URI if env fails, resolving edge deployment (Vercel) undefined breaks
+const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`;
 
 export interface AuthUser {
   name: string;
