@@ -117,7 +117,11 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8 text-center text-sm text-muted-foreground">
-        Built by DEVI SOFTWARE SOLUTIONS and team
+        <p>Built by DEVI SOFTWARE SOLUTIONS and team</p>
+        <div className="mt-4 p-3 bg-muted rounded text-xs font-mono inline-block border border-border text-left">
+          <strong>DEBUG (Callback Whitelist Target):</strong><br/>
+          {window.location.origin}/callback
+        </div>
       </footer>
     </div>
   );
