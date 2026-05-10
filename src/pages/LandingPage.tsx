@@ -67,6 +67,9 @@ export default function LandingPage() {
             Demo Bypass
           </Button>
         </div>
+        <div className="mt-4 text-xs text-muted-foreground opacity-75 text-center border border-border/50 p-2 rounded bg-secondary/20">
+          Active Redirect: <code className="bg-secondary px-1 rounded">{window.location.origin}/callback</code>
+        </div>
         <button
           onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
           className="mt-16 text-muted-foreground hover:text-foreground transition-colors"
