@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { getStreakData } from "@/lib/storage";
 import { streamChatMessage } from "@/lib/gemini";
+import { supabase } from "@/integrations/supabase/client";
+import { getUser } from "@/lib/auth";
 
 export interface Goal {
   id: string;
@@ -25,28 +27,6 @@ export interface Goal {
   lastUpdated: string;
   createdAt: string;
   pledgeAccepted: boolean;
-}
-
-function getGoals(): Goal[] {
-  return JSON.parse(localStorage.getItem("goals") || "[]");
-}
-
-function saveGoals(goals: Goal[]) {
-  localStorage.setItem("goals", JSON.stringify(goals));
-}
-
-function resetIfNewDay(goals: Goal[]): Goal[] {
-  const today = new Date().toISOString().split("T")[0];
-  let changed = false;
-  const updated = goals.map((g) => {
-    if (g.lastUpdated !== today) {
-      changed = true;
-      return { ...g, completedToday: 0, lastUpdated: today };
-    }
-    return g;
-  });
-  if (changed) saveGoals(updated);
-  return updated;
 }
 
 const AI_GOAL_SUGGESTIONS = [
@@ -73,20 +53,62 @@ export default function GoalsPage() {
   const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {
-    const updated = resetIfNewDay(getGoals());
-    setGoals(updated);
+    const fetchGoals = async () => {
+      const email = getUser()?.email || "demo@quranai.app";
+      const { data, error } = await supabase
+        .from("goals")
+        .select("*")
+        .eq("user_email", email)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching goals:", error);
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const parsedGoals: Goal[] = (data || []).map((g: any) => {
+        // Reset completed count if it's a new day
+        let completedToday = g.completed_today;
+        if (g.last_updated !== today) {
+          completedToday = 0;
+          supabase
+            .from("goals")
+            .update({ completed_today: 0, last_updated: today })
+            .eq("id", g.id)
+            .then(({ error: err }) => {
+              if (err) console.error("Error resetting goal count:", err);
+            });
+        }
+
+        return {
+          id: g.id,
+          title: g.title,
+          targetPerDay: g.target_per_day,
+          completedToday,
+          lastUpdated: today,
+          createdAt: g.created_at,
+          pledgeAccepted: g.pledge_accepted,
+        };
+      });
+
+      setGoals(parsedGoals);
+    };
+
+    fetchGoals();
 
     // Check for missed streak days
-    const streak = getStreakData();
-    if (streak.lastActiveDate) {
-      const lastActive = new Date(streak.lastActiveDate);
-      const today = new Date();
-      const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / 86400000);
-      if (diffDays > 1 && updated.length > 0) {
-        setMissedDays(diffDays - 1);
-        setShowDonationReminder(true);
+    getStreakData().then((streak) => {
+      if (streak.lastActiveDate) {
+        const lastActive = new Date(streak.lastActiveDate);
+        const today = new Date();
+        const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / 86400000);
+        if (diffDays > 1) {
+          setMissedDays(diffDays - 1);
+          setShowDonationReminder(true);
+        }
       }
-    }
+    });
   }, []);
 
   const initiateGoalCreation = (title: string, target: number) => {
@@ -95,20 +117,41 @@ export default function GoalsPage() {
     setShowPledge(true);
   };
 
-  const confirmGoalCreation = () => {
+  const confirmGoalCreation = async () => {
     if (!pledgeAccepted || !pendingGoal) return;
+    const email = getUser()?.email || "demo@quranai.app";
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data, error } = await supabase
+      .from("goals")
+      .insert({
+        user_email: email,
+        title: pendingGoal.title,
+        target_per_day: Math.max(1, pendingGoal.target),
+        completed_today: 0,
+        last_updated: today,
+        pledge_accepted: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating goal:", error);
+      toast.error("Failed to create goal");
+      return;
+    }
+
     const goal: Goal = {
-      id: crypto.randomUUID(),
-      title: pendingGoal.title,
-      targetPerDay: Math.max(1, pendingGoal.target),
-      completedToday: 0,
-      lastUpdated: new Date().toISOString().split("T")[0],
-      createdAt: new Date().toISOString(),
-      pledgeAccepted: true,
+      id: data.id,
+      title: data.title,
+      targetPerDay: data.target_per_day,
+      completedToday: data.completed_today,
+      lastUpdated: data.last_updated,
+      createdAt: data.created_at,
+      pledgeAccepted: data.pledge_accepted,
     };
-    const updated = [goal, ...goals];
-    saveGoals(updated);
-    setGoals(updated);
+
+    setGoals([goal, ...goals]);
     setNewTitle("");
     setNewTarget("5");
     setShowForm(false);
@@ -123,23 +166,42 @@ export default function GoalsPage() {
     initiateGoalCreation(newTitle.trim(), Math.max(1, parseInt(newTarget) || 5));
   };
 
-  const increment = (id: string) => {
-    const updated = goals.map((g) => {
-      if (g.id !== id) return g;
-      const newCount = Math.min(g.completedToday + 1, g.targetPerDay);
-      if (newCount === g.targetPerDay && g.completedToday < g.targetPerDay) {
-        toast.success(`🎉 Goal "${g.title}" completed for today!`);
-      }
-      return { ...g, completedToday: newCount, lastUpdated: new Date().toISOString().split("T")[0] };
-    });
-    saveGoals(updated);
-    setGoals(updated);
+  const increment = async (id: string) => {
+    const goal = goals.find((g) => g.id === id);
+    if (!goal) return;
+
+    const newCount = Math.min(goal.completedToday + 1, goal.targetPerDay);
+    const today = new Date().toISOString().split("T")[0];
+
+    const { error } = await supabase
+      .from("goals")
+      .update({ completed_today: newCount, last_updated: today })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating goal:", error);
+      return;
+    }
+
+    if (newCount === goal.targetPerDay && goal.completedToday < goal.targetPerDay) {
+      toast.success(`🎉 Goal "${goal.title}" completed for today!`);
+    }
+
+    setGoals(goals.map((g) => g.id === id ? { ...g, completedToday: newCount, lastUpdated: today } : g));
   };
 
-  const removeGoal = (id: string) => {
-    const updated = goals.filter((g) => g.id !== id);
-    saveGoals(updated);
-    setGoals(updated);
+  const removeGoal = async (id: string) => {
+    const { error } = await supabase
+      .from("goals")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting goal:", error);
+      return;
+    }
+
+    setGoals(goals.filter((g) => g.id !== id));
     toast.success("Goal removed");
   };
 

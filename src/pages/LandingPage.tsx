@@ -25,7 +25,12 @@ export default function LandingPage() {
     if (isAuthenticated()) navigate("/dashboard");
   }, [navigate]);
 
-  const handleLogin = () => {
+  const handleProductionLogin = () => {
+    // Aligned with Pre-Production as requested for latest verification flow
+    initiateOAuth(true);
+  };
+
+  const handleDemoBypass = () => {
     demoLogin();
     navigate("/dashboard");
   };
@@ -39,7 +44,7 @@ export default function LandingPage() {
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate("/docs")}>
             <FileText className="h-3.5 w-3.5" /> Docs
           </Button>
-          <Button variant="outline" size="sm" onClick={handleLogin}>
+          <Button variant="outline" size="sm" onClick={handleProductionLogin}>
             Sign In
           </Button>
         </div>
@@ -53,15 +58,13 @@ export default function LandingPage() {
         <p className="mt-4 text-muted-foreground text-lg max-w-xl text-balance">
           Chat with an AI grounded in the real Quran. Build lifelong habits. Track your journey.
         </p>
-        <div className="mt-8 flex flex-col sm:flex-row gap-3">
-          <Button size="lg" onClick={handleLogin} className="gap-2">
+        <div className="mt-8 flex flex-col sm:flex-row gap-3 items-center justify-center">
+          <Button size="lg" onClick={handleProductionLogin} className="gap-2">
             Connect with Quran.com
             <ArrowRight className="h-4 w-4" />
           </Button>
-          <Button size="lg" variant="outline" onClick={() => {
-            try { initiateOAuth(); } catch { handleLogin(); }
-          }}>
-            OAuth Login (Pre-Production)
+          <Button size="lg" variant="ghost" onClick={handleDemoBypass} className="text-muted-foreground hover:text-foreground">
+            Demo Bypass
           </Button>
         </div>
         <button
@@ -103,7 +106,7 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="mt-12 text-center">
-          <Button size="lg" onClick={handleLogin} className="gap-2">
+          <Button size="lg" onClick={handleProductionLogin} className="gap-2">
             Get Started <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -111,7 +114,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8 text-center text-sm text-muted-foreground">
-        Built for the Quran.com Hackathon · Developed by DevI Software Solution and team
+        Built by DEVI SOFTWARE SOLUTIONS and team
       </footer>
     </div>
   );

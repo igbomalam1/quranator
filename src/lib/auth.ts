@@ -1,8 +1,13 @@
-// Auth utilities for Quran.com OAuth + local storage
-const QURAN_AUTH_BASE = "https://prelive-oauth2.quran.foundation";
-const QURAN_API_BASE = "https://apis-prelive.quran.foundation";
-const CLIENT_ID = "9c656e3f-4cd0-4588-af77-dcf96da42264";
-const REDIRECT_URI = `${window.location.origin}/callback`;
+import { supabase } from "@/integrations/supabase/client";
+
+// Auth credentials
+const QURAN_AUTH_BASE = import.meta.env.VITE_QURAN_AUTH_BASE;
+const CLIENT_ID = import.meta.env.VITE_QURAN_CLIENT_ID;
+
+const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE;
+const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID;
+
+const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI;
 
 export interface AuthUser {
   name: string;
@@ -35,74 +40,111 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
     .replace(/=+$/, "");
 }
 
-export async function initiateOAuth() {
+export async function initiateOAuth(isTest: boolean = false) {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
   const state = crypto.randomUUID();
 
   localStorage.setItem("oauth_code_verifier", codeVerifier);
   localStorage.setItem("oauth_state", state);
+  localStorage.setItem("oauth_is_test", isTest ? "true" : "false");
+
+  const activeAuthBase = isTest ? QURAN_TEST_AUTH_BASE : QURAN_AUTH_BASE;
+  const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
+
+  const nonce = crypto.randomUUID();
+  localStorage.setItem("oauth_nonce", nonce);
 
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: CLIENT_ID,
+    client_id: activeClientId,
     redirect_uri: REDIRECT_URI,
-    scope: "openid offline_access",
+    scope: "openid offline_access user collection",
     state,
+    nonce,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   });
 
-  window.location.href = `${QURAN_AUTH_BASE}/oauth2/auth?${params.toString()}`;
+  window.location.href = `${activeAuthBase}/oauth2/auth?${params.toString()}`;
 }
 
-export async function handleOAuthCallback(code: string, state: string): Promise<boolean> {
+export async function handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string }> {
   const savedState = localStorage.getItem("oauth_state");
   const codeVerifier = localStorage.getItem("oauth_code_verifier");
+  const isTest = localStorage.getItem("oauth_is_test") === "true";
 
   if (state !== savedState || !codeVerifier) {
     console.error("OAuth state mismatch or missing verifier");
-    return false;
+    return { success: false, error: "OAuth state mismatch or missing session verifier" };
   }
 
+  const activeAuthBase = isTest ? QURAN_TEST_AUTH_BASE : QURAN_AUTH_BASE;
+  const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
+
   try {
-    const response = await fetch(`${QURAN_AUTH_BASE}/oauth2/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: CLIENT_ID,
-        code,
-        redirect_uri: REDIRECT_URI,
-        code_verifier: codeVerifier,
-      }),
+    // Securely execute the server-side token exchange inside your Supabase Postgres instance to eliminate CORS errors.
+    // No CLI required! Simply paste the SQL snippet provided into the Supabase SQL Editor.
+    const { data: rpcResult, error: rpcError } = await supabase.rpc("exchange_oauth_token", {
+      p_code: code,
+      p_code_verifier: codeVerifier,
+      p_redirect_uri: REDIRECT_URI,
+      p_is_test: isTest,
     });
 
-    if (!response.ok) {
-      console.error("Token exchange failed:", await response.text());
-      return false;
+    const tokenData = rpcResult as any;
+
+    if (rpcError || !tokenData || tokenData.error) {
+      const actualError = tokenData?.error?.error_description || tokenData?.error?.message || tokenData?.error || rpcError?.message || "Database refused the secure token exchange.";
+      console.error("Database token exchange failed:", actualError);
+      return { success: false, error: actualError };
     }
 
-    const data = await response.json();
     const tokens: AuthTokens = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: Date.now() + data.expires_in * 1000,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: Date.now() + tokenData.expires_in * 1000,
     };
 
     localStorage.setItem("auth_tokens", JSON.stringify(tokens));
-    localStorage.setItem("auth_user", JSON.stringify({
-      name: "Quran Learner",
-      email: "user@quran.com",
-    }));
+
+    // Use the pre-fetched profile provided securely by the Edge function
+    const userInfo = tokenData.profile;
+    let profile = {
+      name: isTest ? "Quran Test Learner" : "Quran Learner",
+      email: isTest ? "test-user@quran.com" : "user@quran.com",
+    };
+
+    if (userInfo) {
+      profile = {
+        name: `${userInfo.first_name || ""} ${userInfo.last_name || ""}`.trim() || userInfo.email?.split("@")[0] || "Quran Learner",
+        email: userInfo.email || profile.email,
+      };
+    }
+
+    localStorage.setItem("auth_user", JSON.stringify(profile));
+
+    // Upsert real user profile into Supabase
+    const { error: upsertError } = await supabase
+      .from("profiles")
+      .upsert({
+        email: profile.email,
+        name: profile.name,
+      });
+
+    if (upsertError) {
+      console.error("Failed to upsert user profile into Supabase:", upsertError);
+    }
 
     localStorage.removeItem("oauth_code_verifier");
     localStorage.removeItem("oauth_state");
+    localStorage.removeItem("oauth_is_test");
+    localStorage.removeItem("oauth_nonce");
 
-    return true;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("OAuth callback error:", err);
-    return false;
+    return { success: false, error: err.message || "An unexpected network or security error occurred during token exchange" };
   }
 }
 
@@ -130,7 +172,7 @@ export function logout() {
 }
 
 // Demo login for testing without OAuth
-export function demoLogin() {
+export async function demoLogin() {
   const tokens: AuthTokens = {
     access_token: "demo_token",
     expires_at: Date.now() + 24 * 60 * 60 * 1000,
@@ -141,4 +183,10 @@ export function demoLogin() {
   };
   localStorage.setItem("auth_tokens", JSON.stringify(tokens));
   localStorage.setItem("auth_user", JSON.stringify(user));
+
+  // Upsert demo profile into Supabase
+  await supabase.from("profiles").upsert({
+    email: user.email,
+    name: user.name,
+  });
 }

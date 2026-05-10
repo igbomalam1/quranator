@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Award, TrendingUp, BookOpen, Heart } from "lucide-react";
 import { getScores, getAverageScore, getTodayScores, type RecitationScore } from "@/lib/quranator-scores";
-import { getSadaqahData, getSadaqahDollars } from "@/lib/sadaqah-points";
+import { getSadaqahData, getSadaqahDollars, type SadaqahData } from "@/lib/sadaqah-points";
 
 function ScoreBar({ label, value }: { label: string; value: number }) {
   const color =
@@ -24,10 +24,33 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 export default function QuranatorScorePage() {
   const [filter, setFilter] = useState<"all" | "today">("today");
-  const allScores = getScores();
-  const todayScores = getTodayScores();
-  const sdqData = getSadaqahData();
-  const sdqDollars = getSadaqahDollars();
+  const [allScores, setAllScores] = useState<RecitationScore[]>([]);
+  const [todayScores, setTodayScores] = useState<RecitationScore[]>([]);
+  const [sdqData, setSdqData] = useState<SadaqahData>({ totalPoints: 0, history: [] });
+  const [sdqDollars, setSdqDollars] = useState<string>("0.00");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const scores = await getScores();
+        const todayS = await getTodayScores();
+        const sdq = await getSadaqahData();
+        const dollars = await getSadaqahDollars();
+
+        setAllScores(scores);
+        setTodayScores(todayS);
+        setSdqData(sdq);
+        setSdqDollars(dollars);
+      } catch (err) {
+        console.error("Error loading scores/Sadaqah details:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const scores = filter === "today" ? todayScores : allScores;
 
@@ -57,113 +80,121 @@ export default function QuranatorScorePage() {
         </h1>
       </div>
 
-      {/* SDQ Points Card */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Heart className="h-5 w-5 text-green-500" />
-            <div>
-              <p className="text-lg font-bold">{sdqData.totalPoints} SDQ</p>
-              <p className="text-xs text-muted-foreground">Sadaqah Points</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold">${sdqDollars}</p>
-            <p className="text-xs text-muted-foreground">Sadaqah value</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Filter tabs */}
-      <div className="flex gap-2">
-        <Button
-          variant={filter === "today" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("today")}
-        >
-          Today
-        </Button>
-        <Button
-          variant={filter === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("all")}
-        >
-          All Time
-        </Button>
-      </div>
-
-      {/* Overall grade */}
-      {stats ? (
+      {loading ? (
+        <div className="h-40 flex items-center justify-center">
+          <div className="h-8 w-8 border-2 border-foreground border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
         <>
+          {/* SDQ Points Card */}
           <Card className="bg-card border-border">
-            <CardContent className="p-6 text-center space-y-3">
-              <div className={`text-5xl font-bold ${getGrade(stats.avgOverall).color}`}>
-                {getGrade(stats.avgOverall).grade}
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Heart className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-lg font-bold">{sdqData.totalPoints} SDQ</p>
+                  <p className="text-xs text-muted-foreground">Sadaqah Points</p>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {getGrade(stats.avgOverall).label} — {stats.avgOverall}% average
-              </p>
-              <div className="flex justify-center gap-6 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <BookOpen className="h-3 w-3" /> {stats.total} recitations
-                </span>
-                <span className="flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" /> Best: {stats.bestScore}%
-                </span>
+              <div className="text-right">
+                <p className="text-lg font-bold">${sdqDollars}</p>
+                <p className="text-xs text-muted-foreground">Sadaqah value</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Breakdown */}
-          <Card className="bg-card border-border">
-            <CardContent className="p-4 space-y-3">
-              <h3 className="text-sm font-medium">Score Breakdown</h3>
-              <ScoreBar label="Accuracy" value={stats.avgAccuracy} />
-              <ScoreBar label="Tajweed" value={stats.avgTajweed} />
-              <ScoreBar label="Fluency" value={stats.avgFluency} />
-            </CardContent>
-          </Card>
+          {/* Filter tabs */}
+          <div className="flex gap-2">
+            <Button
+              variant={filter === "today" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter("today")}
+            >
+              Today
+            </Button>
+            <Button
+              variant={filter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter("all")}
+            >
+              All Time
+            </Button>
+          </div>
 
-          {/* Recent scores */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Recent Recitations</h3>
-            {scores.slice(0, 20).map((score) => (
-              <Card key={score.id} className="bg-card border-border">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{score.verseKey}</p>
-                      <p className="text-xs text-muted-foreground">{score.goalTitle}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`text-lg font-bold ${getGrade(score.overallScore).color}`}>
-                        {score.overallScore}
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(score.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
+          {/* Overall grade */}
+          {stats ? (
+            <>
+              <Card className="bg-card border-border">
+                <CardContent className="p-6 text-center space-y-3">
+                  <div className={`text-5xl font-bold ${getGrade(stats.avgOverall).color}`}>
+                    {getGrade(stats.avgOverall).grade}
                   </div>
-                  {score.feedback && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">
-                      {score.feedback}
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {getGrade(stats.avgOverall).label} — {stats.avgOverall}% average
+                  </p>
+                  <div className="flex justify-center gap-6 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" /> {stats.total} recitations
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" /> Best: {stats.bestScore}%
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+
+              {/* Breakdown */}
+              <Card className="bg-card border-border">
+                <CardContent className="p-4 space-y-3">
+                  <h3 className="text-sm font-medium">Score Breakdown</h3>
+                  <ScoreBar label="Accuracy" value={stats.avgAccuracy} />
+                  <ScoreBar label="Tajweed" value={stats.avgTajweed} />
+                  <ScoreBar label="Fluency" value={stats.avgFluency} />
+                </CardContent>
+              </Card>
+
+              {/* Recent scores */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Recent Recitations</h3>
+                {scores.slice(0, 20).map((score) => (
+                  <Card key={score.id} className="bg-card border-border">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{score.verseKey}</p>
+                          <p className="text-xs text-muted-foreground">{score.goalTitle}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-lg font-bold ${getGrade(score.overallScore).color}`}>
+                            {score.overallScore}
+                          </span>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(score.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      {score.feedback && (
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          {score.feedback}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-16">
+              <Award className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground text-sm mb-4">
+                No scores yet. Go to Quranator and read some verses to get scored!
+              </p>
+              <Button variant="outline" size="sm" onClick={() => (window.location.href = "/quranator")}>
+                Start Learning
+              </Button>
+            </div>
+          )}
         </>
-      ) : (
-        <div className="text-center py-16">
-          <Award className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground text-sm mb-4">
-            No scores yet. Go to Quranator and read some verses to get scored!
-          </p>
-          <Button variant="outline" size="sm" onClick={() => (window.location.href = "/quranator")}>
-            Start Learning
-          </Button>
-        </div>
       )}
 
       {/* SDQ Info */}

@@ -56,11 +56,11 @@ function groupSessionsByDate(sessions: ChatSession[]) {
 export default function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(getActiveSessionId());
-  const [messages, setMessages] = useState<ChatMessage[]>(sessionId ? getSessionMessages(sessionId) : []);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [sessions, setSessions] = useState<ChatSession[]>(getChatSessions());
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const autoSendTriggered = useRef(false);
@@ -69,10 +69,18 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    getChatSessions().then((data) => {
+      setSessions(data);
+    });
+  }, []);
+
   // Reload messages when session changes
   useEffect(() => {
     if (sessionId) {
-      setMessages(getSessionMessages(sessionId));
+      getSessionMessages(sessionId).then((data) => {
+        setMessages(data);
+      });
       setActiveSessionId(sessionId);
     } else {
       setMessages([]);
@@ -84,18 +92,23 @@ export default function ChatPage() {
     if (autoSendTriggered.current) return;
     const autoSend = searchParams.get("autoSend");
     if (autoSend === "true" && sessionId) {
-      const msgs = getSessionMessages(sessionId);
-      // Only auto-send if there's exactly 1 user message and no assistant response
-      if (msgs.length === 1 && msgs[0].role === "user") {
-        autoSendTriggered.current = true;
-        setSearchParams({}, { replace: true });
-        // Trigger AI response for the existing user message
-        triggerAIResponse(sessionId, msgs[0].content, []);
-      }
+      getSessionMessages(sessionId).then((msgs) => {
+        // Only auto-send if there's exactly 1 user message and no assistant response
+        if (msgs.length === 1 && msgs[0].role === "user") {
+          autoSendTriggered.current = true;
+          setSearchParams({}, { replace: true });
+          // Trigger AI response for the existing user message
+          triggerAIResponse(sessionId, msgs[0].content, []);
+        }
+      });
     }
   }, [sessionId, searchParams]);
 
-  const refreshSessions = () => setSessions(getChatSessions());
+  const refreshSessions = () => {
+    getChatSessions().then((data) => {
+      setSessions(data);
+    });
+  };
 
   const startNewChat = () => {
     setActiveSessionId(null);
@@ -109,8 +122,8 @@ export default function ChatPage() {
     setShowHistory(false);
   };
 
-  const deleteSession = (id: string) => {
-    deleteChatSession(id);
+  const deleteSession = async (id: string) => {
+    await deleteChatSession(id);
     refreshSessions();
     if (sessionId === id) startNewChat();
   };
@@ -136,12 +149,13 @@ export default function ChatPage() {
           });
         },
         () => {
-          const aiMsg = addMessageToSession(sid, { role: "assistant", content: assistantContent });
-          setMessages((prev) => {
-            const filtered = prev.filter((m) => m.id !== "streaming");
-            return [...filtered, aiMsg];
+          addMessageToSession(sid, { role: "assistant", content: assistantContent }).then((aiMsg) => {
+            setMessages((prev) => {
+              const filtered = prev.filter((m) => m.id !== "streaming");
+              return [...filtered, aiMsg];
+            });
+            refreshSessions();
           });
-          refreshSessions();
         },
       );
     } catch (err: any) {
@@ -158,12 +172,12 @@ export default function ChatPage() {
 
     let currentSessionId = sessionId;
     if (!currentSessionId) {
-      const session = createChatSession(text.trim());
+      const session = await createChatSession(text.trim());
       currentSessionId = session.id;
       setSessionId(currentSessionId);
     }
 
-    const userMsg = addMessageToSession(currentSessionId, { role: "user", content: text.trim() });
+    const userMsg = await addMessageToSession(currentSessionId, { role: "user", content: text.trim() });
     setMessages((prev) => [...prev, userMsg]);
 
     const history = messages.map((m) => ({ role: m.role, content: m.content }));

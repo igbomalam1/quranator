@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,29 +10,43 @@ import type { Bookmark as BookmarkType } from "@/lib/storage";
 
 export default function BookmarksPage() {
   const navigate = useNavigate();
-  const [bookmarks, setBookmarks] = useState<BookmarkType[]>(getBookmarks());
+  const [bookmarks, setBookmarks] = useState<BookmarkType[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [verseKey, setVerseKey] = useState("");
   const [note, setNote] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    getBookmarks().then((data) => {
+      setBookmarks(data);
+    });
+  }, []);
+
+  const handleSave = async () => {
     if (!verseKey.trim()) {
       toast.error("Please enter a verse key");
       return;
     }
-    const b = saveBookmark({ verseKey: verseKey.trim(), note: note.trim() || undefined });
-    setBookmarks([b, ...bookmarks]);
-    setVerseKey("");
-    setNote("");
-    setShowForm(false);
-    toast.success("Bookmark saved!");
+    try {
+      const b = await saveBookmark({ verseKey: verseKey.trim(), note: note.trim() || undefined });
+      setBookmarks([b, ...bookmarks]);
+      setVerseKey("");
+      setNote("");
+      setShowForm(false);
+      toast.success("Bookmark saved!");
+    } catch (err: any) {
+      toast.error(`Failed to save bookmark: ${err.message || "Unknown DB error"}`);
+    }
   };
 
-  const handleRemove = (id: string) => {
-    removeBookmark(id);
-    setBookmarks(bookmarks.filter((b) => b.id !== id));
-    toast.success("Bookmark removed");
+  const handleRemove = async (id: string) => {
+    try {
+      await removeBookmark(id);
+      setBookmarks(bookmarks.filter((b) => b.id !== id));
+      toast.success("Bookmark removed");
+    } catch {
+      toast.error("Failed to remove bookmark");
+    }
   };
 
   const suggestBookmark = async () => {
@@ -47,8 +61,8 @@ export default function BookmarksPage() {
       );
       const parts = result.trim().split("|");
       if (parts.length >= 2) {
-        const b = saveBookmark({ verseKey: parts[0].trim(), note: parts.slice(1).join("|").trim() });
-        setBookmarks([b, ...getBookmarks().filter(x => x.id !== b.id)]);
+        const b = await saveBookmark({ verseKey: parts[0].trim(), note: parts.slice(1).join("|").trim() });
+        setBookmarks([b, ...bookmarks]);
         toast.success("AI bookmark added! 📌");
       } else {
         toast.error("Could not parse AI suggestion");
@@ -125,9 +139,9 @@ export default function BookmarksPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => {
+                      onClick={async () => {
                         const prompt = `Tell me about verse [${b.verseKey}]${b.note ? ` — "${b.note}"` : ""}. Provide the Arabic text, transliteration, full translation, tafsir, and why this verse is important for daily life.`;
-                        saveChatMessage({ role: "user", content: prompt });
+                        await saveChatMessage({ role: "user", content: prompt });
                         navigate("/chat");
                       }}
                     >

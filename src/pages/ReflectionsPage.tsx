@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, BookOpen, Sparkles } from "lucide-react";
@@ -10,23 +10,33 @@ import remarkGfm from "remark-gfm";
 import type { Reflection } from "@/lib/storage";
 
 export default function ReflectionsPage() {
-  const [reflections, setReflections] = useState<Reflection[]>(getReflections());
+  const [reflections, setReflections] = useState<Reflection[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [verseKey, setVerseKey] = useState("");
   const [text, setText] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    getReflections().then((data) => {
+      setReflections(data);
+    });
+  }, []);
+
+  const handleSave = async () => {
     if (!verseKey.trim() || !text.trim()) {
       toast.error("Please fill in both fields");
       return;
     }
-    const r = saveReflection({ verseKey: verseKey.trim(), text: text.trim() });
-    setReflections([r, ...reflections]);
-    setVerseKey("");
-    setText("");
-    setShowForm(false);
-    toast.success("Reflection saved!");
+    try {
+      const r = await saveReflection({ verseKey: verseKey.trim(), text: text.trim() });
+      setReflections([r, ...reflections]);
+      setVerseKey("");
+      setText("");
+      setShowForm(false);
+      toast.success("Reflection saved!");
+    } catch (err: any) {
+      toast.error(`Failed to save reflection: ${err.message || "Unknown DB error"}`);
+    }
   };
 
   const generateAiReflection = async () => {
@@ -42,8 +52,8 @@ export default function ReflectionsPage() {
       const verseMatch = result.match(/\[(\d+:\d+)\]/);
       const vk = verseMatch ? verseMatch[1] : "2:286";
       const reflectionText = result.replace(/\[\d+:\d+\]\s*/, "").trim();
-      const r = saveReflection({ verseKey: vk, text: reflectionText });
-      setReflections([r, ...getReflections().filter(x => x.id !== r.id)]);
+      const r = await saveReflection({ verseKey: vk, text: reflectionText });
+      setReflections([r, ...reflections]);
       toast.success("AI reflection generated! 🌟");
     } catch {
       toast.error("Failed to generate reflection");

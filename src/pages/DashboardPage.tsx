@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Flame, Play, Pause, BookOpen, Target, Sparkles, AlertTriangle } from "lucide-react";
 import { getStreakData, recordActivity, getReflections, createChatSession, addMessageToSession, setActiveSessionId } from "@/lib/storage";
 import { fetchVerseByKey, getRandomVerseKey, getCachedAyah, cacheAyah } from "@/lib/quran-api";
+import { getUser } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 import type { Verse } from "@/lib/quran-api";
 import { toast } from "sonner";
 import {
@@ -22,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { StreakData, Reflection } from "@/lib/storage";
 
 const stripMarkdown = (text: string) =>
   text.replace(/#{1,6}\s?/g, "").replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/^[-*]\s/gm, "• ");
@@ -33,7 +36,7 @@ interface ReciterOption {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [streak, setStreak] = useState(getStreakData());
+  const [streak, setStreak] = useState<StreakData>({ currentStreak: 0, longestStreak: 0, lastActiveDate: "", activeDates: [] });
   const [ayah, setAyah] = useState<Verse | null>(null);
   const [playing, setPlaying] = useState(false);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
@@ -41,27 +44,70 @@ export default function DashboardPage() {
   const [missedDays, setMissedDays] = useState(0);
   const [reciters, setReciters] = useState<ReciterOption[]>([]);
   const [selectedReciter, setSelectedReciter] = useState(7);
-  const reflections = getReflections().slice(0, 3);
+  const [reflections, setReflections] = useState<Reflection[]>([]);
 
   useEffect(() => {
-    const updated = recordActivity();
-    setStreak(updated);
+    // Safety First: Ensure profile exists in database to protect foreign key integrity for all sub-actions
+    const verifyProfileHealth = async () => {
+      const user = getUser();
+      if (!user?.email) return;
 
-    // Check for missed streak
-    const streakData = getStreakData();
-    if (streakData.lastActiveDate) {
-      const lastActive = new Date(streakData.lastActiveDate);
-      const today = new Date();
-      const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / 86400000);
-      if (diffDays > 1) {
-        setMissedDays(diffDays - 1);
-        const dismissed = localStorage.getItem("streak_punishment_dismissed");
-        const dismissedDate = dismissed ? new Date(dismissed).toISOString().split("T")[0] : "";
-        if (dismissedDate !== today.toISOString().split("T")[0]) {
-          setShowStreakPunishment(true);
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("email", user.email)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Failed checking profile health:", error);
+          return;
+        }
+
+        if (!data) {
+          // Proactive fix: Force populate the profile automatically
+          console.log("Profile record missing. Establishing database persistence...");
+          const { error: upsertErr } = await supabase.from("profiles").upsert({
+            email: user.email,
+            name: user.name || "Quran Learner",
+            avatar_url: null,
+          });
+          
+          if (!upsertErr) {
+            console.log("Database integrity restored.");
+          }
+        }
+      } catch (err) {
+        console.error("Unexpected profile health check failure:", err);
+      }
+    };
+
+    verifyProfileHealth();
+  }, []);
+
+  useEffect(() => {
+    recordActivity().then((updated) => {
+      setStreak(updated);
+
+      // Check for missed streak
+      const lastActive = updated.lastActiveDate ? new Date(updated.lastActiveDate) : null;
+      if (lastActive) {
+        const today = new Date();
+        const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / 86400000);
+        if (diffDays > 1) {
+          setMissedDays(diffDays - 1);
+          const dismissed = localStorage.getItem("streak_punishment_dismissed");
+          const dismissedDate = dismissed ? new Date(dismissed).toISOString().split("T")[0] : "";
+          if (dismissedDate !== today.toISOString().split("T")[0]) {
+            setShowStreakPunishment(true);
+          }
         }
       }
-    }
+    });
+
+    getReflections().then((data) => {
+      setReflections(data.slice(0, 3));
+    });
 
     // Fetch reciters
     fetchReciters();
@@ -145,13 +191,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDeepLearning = () => {
+  const handleDeepLearning = async () => {
     if (!ayah) return;
     const prompt = `This is today's Ayah of the Day: [${ayah.verse_key}] "${ayah.text_uthmani}". Explain why this verse is significant, its historical context (asbab al-nuzul), deep tafsir, and practical lessons we can apply today.`;
     
     // Create a new session and pre-populate with user message
-    const session = createChatSession(prompt);
-    addMessageToSession(session.id, { role: "user", content: prompt });
+    const session = await createChatSession(prompt);
+    await addMessageToSession(session.id, { role: "user", content: prompt });
     setActiveSessionId(session.id);
     
     // Navigate — the chat page will detect the pending message and auto-send

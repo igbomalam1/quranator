@@ -39,6 +39,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { supabase } from "@/integrations/supabase/client";
+import { getUser } from "@/lib/auth";
+
 interface Goal {
   id: string;
   title: string;
@@ -47,10 +50,6 @@ interface Goal {
   lastUpdated: string;
   createdAt: string;
   pledgeAccepted: boolean;
-}
-
-function getGoals(): Goal[] {
-  return JSON.parse(localStorage.getItem("goals") || "[]");
 }
 
 function parseGoalReference(title: string): { surah: number; ayah?: number } | null {
@@ -110,6 +109,8 @@ export default function QuranatorPage() {
   const [showCompletion, setShowCompletion] = useState(false);
   const [finalScore, setFinalScore] = useState<ScoreResult | null>(null);
   const [sdqAwarded, setSdqAwarded] = useState(0);
+  const [sadaqahTotal, setSadaqahTotal] = useState<number | string>("...");
+  const [sadaqahDollars, setSadaqahDollars] = useState<string>("...");
   const [reciters, setReciters] = useState<ReciterOption[]>([]);
   const [selectedReciter, setSelectedReciter] = useState(7);
   const [completedGoalIndices, setCompletedGoalIndices] = useState<number[]>([]);
@@ -147,10 +148,37 @@ export default function QuranatorPage() {
 
   useEffect(() => {
     if (quickStartSurah) return; // Skip if quick-started
-    const allGoals = getGoals();
-    setGoals(allGoals);
+    
+    const fetchGoals = async () => {
+      const email = getUser()?.email || "demo@quranai.app";
+      const { data, error } = await supabase
+        .from("goals")
+        .select("*")
+        .eq("user_email", email)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching goals:", error);
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const parsedGoals: Goal[] = (data || []).map((g: any) => ({
+        id: g.id,
+        title: g.title,
+        targetPerDay: g.target_per_day,
+        completedToday: g.completed_today,
+        lastUpdated: today,
+        createdAt: g.created_at,
+        pledgeAccepted: g.pledge_accepted,
+      }));
+
+      setGoals(parsedGoals);
+    };
+
+    fetchGoals();
     fetchReciters();
-  }, []);
+  }, [quickStartSurah]);
 
   const fetchReciters = async () => {
     try {
@@ -373,8 +401,19 @@ export default function QuranatorPage() {
     recognition.onerror = (event: any) => {
       if (event.error === "no-speech") return;
       setRecording(false);
+      // User override: mark read as attempted so they are not trapped
+      setHasRead(true);
+      if (currentVerse) {
+        setVersionSessions(prev => [...prev, {
+          verseKey: currentVerse.verse_key,
+          arabicText: currentVerse.text_uthmani,
+          transcript: "(skipped - speech error)",
+          listened: true,
+          read: true,
+        }]);
+      }
       if (event.error === "not-allowed") toast.error("Microphone access denied.");
-      else toast.error(`Speech error: ${event.error}`);
+      else toast.warning(`Speech error: ${event.error}. You may proceed.`);
     };
 
     recognition.onend = () => {
@@ -442,7 +481,7 @@ export default function QuranatorPage() {
 
       // Save scores for all verse sessions
       for (const session of verseSessions) {
-        saveScore({
+        await saveScore({
           goalTitle: goals.map(g => g.title).join(", "),
           verseKey: session.verseKey,
           arabicText: session.arabicText,
@@ -456,8 +495,14 @@ export default function QuranatorPage() {
         });
       }
 
-      const pts = awardSadaqahPoints(result.overallScore, verseSessions[0]?.verseKey || "1:1");
+      const pts = await awardSadaqahPoints(result.overallScore, verseSessions[0]?.verseKey || "1:1");
       if (pts > 0) setSdqAwarded(pts);
+
+      // Load stats asynchronously BEFORE rendering final completion view to avoid injection crash
+      const currentSdq = await getSadaqahData();
+      const currentDollars = await getSadaqahDollars();
+      setSadaqahTotal(currentSdq.totalPoints);
+      setSadaqahDollars(currentDollars);
 
       setFinalScore(result);
       setShowCompletion(true);
@@ -465,6 +510,9 @@ export default function QuranatorPage() {
       console.error("Final scoring failed:", err);
       const mock = generateMockScore();
       setFinalScore(mock);
+      // Try to load static safe data if DB lookup crashed
+      getSadaqahData().then(d => setSadaqahTotal(d.totalPoints)).catch(() => {});
+      getSadaqahDollars().then(d => setSadaqahDollars(d)).catch(() => {});
       setShowCompletion(true);
     } finally {
       setScoring(false);
@@ -863,7 +911,7 @@ export default function QuranatorPage() {
               <div className="bg-secondary/50 rounded-lg p-3 flex items-center justify-center gap-2">
                 <Heart className="h-4 w-4 text-green-500" />
                 <span className="text-sm">
-                  Total SDQ: <strong>{getSadaqahData().totalPoints}</strong> (${getSadaqahDollars()} sadaqah value)
+                  Total SDQ: <strong>{sadaqahTotal}</strong> (${sadaqahDollars} value)
                 </span>
               </div>
             </DialogDescription>

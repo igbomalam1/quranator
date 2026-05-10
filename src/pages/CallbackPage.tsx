@@ -12,12 +12,12 @@ export default function CallbackPage() {
     const state = params.get("state");
 
     if (code && state) {
-      handleOAuthCallback(code, state).then((success) => {
-        if (success) {
+      handleOAuthCallback(code, state).then((result) => {
+        if (result.success) {
           toast.success("Successfully connected with Quran.com!");
           navigate("/dashboard");
         } else {
-          toast.error("OAuth failed. Using demo mode.");
+          toast.error(`Connection Failed: ${result.error || "Unknown error occurred."}`);
           demoLogin();
           navigate("/dashboard");
         }

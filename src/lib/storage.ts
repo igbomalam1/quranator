@@ -1,4 +1,5 @@
-// Local storage helpers for app data
+import { supabase } from "@/integrations/supabase/client";
+import { getUser } from "./auth";
 
 export interface Reflection {
   id: string;
@@ -36,142 +37,331 @@ export interface StreakData {
   activeDates: string[];
 }
 
-// Reflections
-export function getReflections(): Reflection[] {
-  return JSON.parse(localStorage.getItem("reflections") || "[]");
+// Helper to get active user email
+function getEmail(): string {
+  const user = getUser();
+  return user?.email || "demo@quranai.app";
 }
-export function saveReflection(r: Omit<Reflection, "id" | "createdAt">): Reflection {
-  const reflections = getReflections();
-  const newR: Reflection = { ...r, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-  reflections.unshift(newR);
-  localStorage.setItem("reflections", JSON.stringify(reflections));
-  return newR;
+
+// Reflections
+export async function getReflections(): Promise<Reflection[]> {
+  const email = getEmail();
+  const { data, error } = await supabase
+    .from("reflections")
+    .select("*")
+    .eq("user_email", email)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error getting reflections:", error);
+    return [];
+  }
+
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    verseKey: r.verse_key,
+    text: r.text,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function saveReflection(r: Omit<Reflection, "id" | "createdAt">): Promise<Reflection> {
+  const email = getEmail();
+  const { data, error } = await supabase
+    .from("reflections")
+    .insert({
+      user_email: email,
+      verse_key: r.verseKey,
+      text: r.text,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error saving reflection:", error);
+    throw error;
+  }
+
+  if (!data) throw new Error("DB request failed to return the new row.");
+
+  return {
+    id: data.id,
+    verseKey: data.verse_key,
+    text: data.text,
+    createdAt: data.created_at,
+  };
 }
 
 // Bookmarks
-export function getBookmarks(): Bookmark[] {
-  return JSON.parse(localStorage.getItem("bookmarks") || "[]");
+export async function getBookmarks(): Promise<Bookmark[]> {
+  const email = getEmail();
+  const { data, error } = await supabase
+    .from("bookmarks")
+    .select("*")
+    .eq("user_email", email)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error getting bookmarks:", error);
+    return [];
+  }
+
+  return (data || []).map((b: any) => ({
+    id: b.id,
+    verseKey: b.verse_key,
+    note: b.note || undefined,
+    createdAt: b.created_at,
+  }));
 }
-export function saveBookmark(b: Omit<Bookmark, "id" | "createdAt">): Bookmark {
-  const bookmarks = getBookmarks();
-  const newB: Bookmark = { ...b, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-  bookmarks.unshift(newB);
-  localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
-  return newB;
+
+export async function saveBookmark(b: Omit<Bookmark, "id" | "createdAt">): Promise<Bookmark> {
+  const email = getEmail();
+  const { data, error } = await supabase
+    .from("bookmarks")
+    .insert({
+      user_email: email,
+      verse_key: b.verseKey,
+      note: b.note || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error saving bookmark:", error);
+    throw error;
+  }
+
+  if (!data) throw new Error("DB request failed to return the new row.");
+
+  return {
+    id: data.id,
+    verseKey: data.verse_key,
+    note: data.note || undefined,
+    createdAt: data.created_at,
+  };
 }
-export function removeBookmark(id: string) {
-  const bookmarks = getBookmarks().filter((b) => b.id !== id);
-  localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
+
+export async function removeBookmark(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("bookmarks")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error removing bookmark:", error);
+    throw error;
+  }
 }
 
 // Chat Sessions
-function getSessions(): ChatSession[] {
-  return JSON.parse(localStorage.getItem("chat_sessions") || "[]");
-}
-function saveSessions(sessions: ChatSession[]) {
-  localStorage.setItem("chat_sessions", JSON.stringify(sessions));
-}
+export async function getChatSessions(): Promise<ChatSession[]> {
+  const email = getEmail();
+  const { data: sessions, error: sessionErr } = await supabase
+    .from("chat_sessions")
+    .select("*")
+    .eq("user_email", email)
+    .order("updated_at", { ascending: false });
 
-export function getChatSessions(): ChatSession[] {
-  // Migrate old flat chat_history to a session if it exists
-  const oldHistory = localStorage.getItem("chat_history");
-  if (oldHistory) {
-    const oldMessages: ChatMessage[] = JSON.parse(oldHistory);
-    if (oldMessages.length > 0) {
-      const sessions = getSessions();
-      const title = oldMessages[0]?.content?.slice(0, 50) || "Previous Chat";
-      sessions.unshift({
-        id: crypto.randomUUID(),
-        title,
-        messages: oldMessages,
-        createdAt: oldMessages[0]?.timestamp || new Date().toISOString(),
-        updatedAt: oldMessages[oldMessages.length - 1]?.timestamp || new Date().toISOString(),
-      });
-      saveSessions(sessions);
-    }
-    localStorage.removeItem("chat_history");
+  if (sessionErr) {
+    console.error("Error getting sessions:", sessionErr);
+    return [];
   }
-  return getSessions();
+
+  const result: ChatSession[] = [];
+  for (const s of sessions || []) {
+    const { data: messages, error: msgErr } = await supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("session_id", s.id)
+      .order("created_at", { ascending: true });
+
+    if (msgErr) {
+      console.error(`Error getting messages for session ${s.id}:`, msgErr);
+      continue;
+    }
+
+    result.push({
+      id: s.id,
+      title: s.title,
+      messages: (messages || []).map((m: any) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: m.created_at,
+      })),
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+    });
+  }
+
+  return result;
 }
 
 export function getActiveSessionId(): string | null {
   return localStorage.getItem("active_session_id");
 }
+
 export function setActiveSessionId(id: string | null) {
   if (id) localStorage.setItem("active_session_id", id);
   else localStorage.removeItem("active_session_id");
 }
 
-export function createChatSession(firstMessage?: string): ChatSession {
+export async function createChatSession(firstMessage?: string): Promise<ChatSession> {
+  const email = getEmail();
+  const title = firstMessage?.slice(0, 50) || "New Chat";
+
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .insert({
+      user_email: email,
+      title,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating session:", error);
+    throw error;
+  }
+
   const session: ChatSession = {
-    id: crypto.randomUUID(),
-    title: firstMessage?.slice(0, 50) || "New Chat",
+    id: data.id,
+    title: data.title,
     messages: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
   };
-  const sessions = getSessions();
-  sessions.unshift(session);
-  saveSessions(sessions);
+
   setActiveSessionId(session.id);
   return session;
 }
 
-export function getSessionMessages(sessionId: string): ChatMessage[] {
-  const session = getSessions().find((s) => s.id === sessionId);
-  return session?.messages || [];
-}
+export async function getSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
 
-export function addMessageToSession(sessionId: string, msg: Omit<ChatMessage, "id" | "timestamp">): ChatMessage {
-  const sessions = getSessions();
-  const session = sessions.find((s) => s.id === sessionId);
-  if (!session) throw new Error("Session not found");
-  const newMsg: ChatMessage = { ...msg, id: crypto.randomUUID(), timestamp: new Date().toISOString() };
-  session.messages.push(newMsg);
-  if (session.messages.length === 1 && msg.role === "user") {
-    session.title = msg.content.slice(0, 50);
+  if (error) {
+    console.error("Error getting session messages:", error);
+    return [];
   }
-  session.updatedAt = new Date().toISOString();
-  saveSessions(sessions);
-  return newMsg;
+
+  return (data || []).map((m: any) => ({
+    id: m.id,
+    role: m.role as "user" | "assistant",
+    content: m.content,
+    timestamp: m.created_at,
+  }));
 }
 
-export function deleteChatSession(sessionId: string) {
-  const sessions = getSessions().filter((s) => s.id !== sessionId);
-  saveSessions(sessions);
+export async function addMessageToSession(sessionId: string, msg: Omit<ChatMessage, "id" | "timestamp">): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .insert({
+      session_id: sessionId,
+      role: msg.role,
+      content: msg.content,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error adding message:", error);
+    throw error;
+  }
+
+  // Update session updatedAt and title if it's the first user message
+  if (msg.role === "user") {
+    const { data: messages } = await supabase
+      .from("chat_messages")
+      .select("id")
+      .eq("session_id", sessionId);
+
+    const updatePayload: any = { updated_at: new Date().toISOString() };
+    if (messages && messages.length === 1) {
+      updatePayload.title = msg.content.slice(0, 50);
+    }
+
+    await supabase
+      .from("chat_sessions")
+      .update(updatePayload)
+      .eq("id", sessionId);
+  }
+
+  return {
+    id: data.id,
+    role: data.role as "user" | "assistant",
+    content: data.content,
+    timestamp: data.created_at,
+  };
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from("chat_sessions")
+    .delete()
+    .eq("id", sessionId);
+
+  if (error) {
+    console.error("Error deleting session:", error);
+    throw error;
+  }
+
   const activeId = getActiveSessionId();
   if (activeId === sessionId) setActiveSessionId(null);
 }
 
-// Legacy helpers (kept for backward compat with DashboardPage etc.)
-export function getChatHistory(): ChatMessage[] {
+// Legacy helpers (kept for backward compatibility where possible, but now returning Promises)
+export async function getChatHistory(): Promise<ChatMessage[]> {
   const activeId = getActiveSessionId();
   if (activeId) return getSessionMessages(activeId);
   return [];
 }
-export function saveChatMessage(msg: Omit<ChatMessage, "id" | "timestamp">): ChatMessage {
+
+export async function saveChatMessage(msg: Omit<ChatMessage, "id" | "timestamp">): Promise<ChatMessage> {
   let activeId = getActiveSessionId();
   if (!activeId) {
-    const session = createChatSession(msg.role === "user" ? msg.content : undefined);
+    const session = await createChatSession(msg.role === "user" ? msg.content : undefined);
     activeId = session.id;
   }
   return addMessageToSession(activeId, msg);
 }
-export function clearChatHistory() {
+
+export async function clearChatHistory(): Promise<void> {
   const activeId = getActiveSessionId();
-  if (activeId) deleteChatSession(activeId);
+  if (activeId) await deleteChatSession(activeId);
   setActiveSessionId(null);
 }
 
 // Streaks
-export function getStreakData(): StreakData {
-  const raw = localStorage.getItem("streak_data");
-  if (raw) return JSON.parse(raw);
-  return { currentStreak: 0, longestStreak: 0, lastActiveDate: "", activeDates: [] };
+export async function getStreakData(): Promise<StreakData> {
+  const email = getEmail();
+  const { data, error } = await supabase
+    .from("streaks")
+    .select("*")
+    .eq("user_email", email)
+    .single();
+
+  if (error) {
+    if (error.code !== "PGRST116") { // Ignore record not found error code
+      console.error("Error getting streak data:", error);
+    }
+    return { currentStreak: 0, longestStreak: 0, lastActiveDate: "", activeDates: [] };
+  }
+
+  return {
+    currentStreak: data.current_streak,
+    longestStreak: data.longest_streak,
+    lastActiveDate: data.last_active_date,
+    activeDates: data.active_dates || [],
+  };
 }
-export function recordActivity() {
+
+export async function recordActivity(): Promise<StreakData> {
   const today = new Date().toISOString().split("T")[0];
-  const data = getStreakData();
+  const data = await getStreakData();
   if (data.lastActiveDate === today) return data;
 
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
@@ -183,6 +373,21 @@ export function recordActivity() {
     lastActiveDate: today,
     activeDates: [...new Set([...data.activeDates, today])],
   };
-  localStorage.setItem("streak_data", JSON.stringify(updated));
+
+  const email = getEmail();
+  const { error } = await supabase
+    .from("streaks")
+    .upsert({
+      user_email: email,
+      current_streak: updated.currentStreak,
+      longest_streak: updated.longestStreak,
+      last_active_date: updated.lastActiveDate,
+      active_dates: updated.activeDates,
+    });
+
+  if (error) {
+    console.error("Error updating streak:", error);
+  }
+
   return updated;
 }
