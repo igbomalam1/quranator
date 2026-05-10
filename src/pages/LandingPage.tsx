@@ -26,8 +26,8 @@ export default function LandingPage() {
   }, [navigate]);
 
   const handleProductionLogin = () => {
-    // Aligned with Pre-Production as requested for latest verification flow
-    initiateOAuth(true);
+    // Reverting back to production endpoint channel as requested
+    initiateOAuth(false);
   };
 
   const handleDemoBypass = () => {
