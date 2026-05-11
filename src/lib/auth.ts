@@ -7,8 +7,8 @@ const CLIENT_ID = import.meta.env.VITE_QURAN_CLIENT_ID || "74b4fce7-1591-401d-93
 const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE || "https://prelive-oauth2.quran.foundation";
 const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID || "9c656e3f-4cd0-4588-af77-dcf96da42264";
 
-// Dynamically compute URI if env fails, resolving edge deployment (Vercel) undefined breaks
-const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`;
+// Strictly use environment variable as requested to prevent mismatched redirect URIs on deployments
+export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || "";
 
 export interface AuthUser {
   name: string;

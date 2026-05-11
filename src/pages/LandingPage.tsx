@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen, MessageSquare, BarChart3, Bookmark, ArrowRight, ChevronDown, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { initiateOAuth, demoLogin, isAuthenticated } from "@/lib/auth";
+import { initiateOAuth, demoLogin, isAuthenticated, REDIRECT_URI } from "@/lib/auth";
 import { useEffect } from "react";
 
 const features = [
@@ -67,9 +67,7 @@ export default function LandingPage() {
             Demo Bypass
           </Button>
         </div>
-        <div className="mt-4 text-xs text-muted-foreground opacity-75 text-center border border-border/50 p-2 rounded bg-secondary/20">
-          Active Redirect: <code className="bg-secondary px-1 rounded">{window.location.origin}/callback</code>
-        </div>
+
         <button
           onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
           className="mt-16 text-muted-foreground hover:text-foreground transition-colors"
@@ -115,14 +113,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border px-6 py-8 text-center text-sm text-muted-foreground">
-        <p>Built by DEVI SOFTWARE SOLUTIONS and team</p>
-        <div className="mt-4 p-3 bg-muted rounded text-xs font-mono inline-block border border-border text-left">
-          <strong>DEBUG (Callback Whitelist Target):</strong><br/>
-          {window.location.origin}/callback
-        </div>
-      </footer>
+
     </div>
   );
 }

@@ -69,21 +69,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Flame className="h-4 w-4 text-foreground" />
             <span>{streak.currentStreak}</span>
           </div>
-          <div className="relative group">
-            <Avatar className="h-8 w-8 cursor-pointer border border-border">
-              <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                {user?.name?.charAt(0) || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-md py-1 hidden group-hover:block min-w-[120px]">
-              <button
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Avatar className="h-8 w-8 cursor-pointer border border-border">
+                <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                  {user?.name?.charAt(0) || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="mt-1 min-w-[120px]">
+              <DropdownMenuItem 
                 onClick={() => { logout(); navigate("/"); }}
-                className="flex items-center gap-2 px-3 py-2 text-sm w-full hover:bg-secondary transition-colors"
+                className="flex items-center gap-2 text-sm cursor-pointer text-destructive focus:text-destructive"
               >
                 <LogOut className="h-3.5 w-3.5" /> Logout
-              </button>
-            </div>
-          </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -107,6 +109,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          
+          <div className="mt-auto pt-4">
+            <button
+              onClick={() => { logout(); navigate("/"); }}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm w-full text-destructive hover:bg-destructive/10 transition-colors text-left"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
         </aside>
 
         {/* Mobile bottom nav */}
