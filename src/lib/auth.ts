@@ -1,8 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // Auth credentials with runtime safety fallback cascade
-const QURAN_AUTH_BASE = import.meta.env.VITE_QURAN_AUTH_BASE || "https://oauth2.quran.foundation";
-const CLIENT_ID = import.meta.env.VITE_QURAN_CLIENT_ID || "74b4fce7-1591-401d-93de-c27a2b0cac85";
+// Auth credentials - STRICTLY hardcoded for production to eliminate configuration divergence risks on edge deployments
+const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
+const CLIENT_ID = "74b4fce7-1591-401d-93de-c27a2b0cac85";
 
 const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE || "https://prelive-oauth2.quran.foundation";
 const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID || "9c656e3f-4cd0-4588-af77-dcf96da42264";
@@ -67,7 +68,9 @@ export async function initiateOAuth(isTest: boolean = false) {
     code_challenge_method: "S256",
   });
 
-  window.location.href = `${activeAuthBase}/oauth2/auth?${params.toString()}`;
+  const finalUrl = `${activeAuthBase}/oauth2/auth?${params.toString()}`;
+  console.log("Initiating OAuth redirect to:", finalUrl);
+  window.location.href = finalUrl;
 }
 
 export async function handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string }> {
