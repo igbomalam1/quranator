@@ -8,7 +8,7 @@ const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE || "https
 const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID || "9c656e3f-4cd0-4588-af77-dcf96da42264";
 
 // Strictly use environment variable as requested to prevent mismatched redirect URIs on deployments
-export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || "";
+export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`;
 
 export interface AuthUser {
   name: string;

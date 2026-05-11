@@ -18,13 +18,17 @@ export default function CallbackPage() {
           navigate("/dashboard");
         } else {
           toast.error(`Connection Failed: ${result.error || "Unknown error occurred."}`);
-          demoLogin();
-          navigate("/dashboard");
+          navigate("/");
         }
       });
     } else {
-      demoLogin();
-      navigate("/dashboard");
+      // Handle explicitly reported OAuth errors returned from the provider in parameters (e.g. error=invalid_scope)
+      const errorParam = params.get("error");
+      const errorDesc = params.get("error_description");
+      if (errorParam) {
+        toast.error(`Provider Error: ${errorDesc || errorParam}`);
+      }
+      navigate("/");
     }
   }, [params, navigate]);
 
