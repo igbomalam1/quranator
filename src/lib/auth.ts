@@ -54,16 +54,13 @@ export async function initiateOAuth(isTest: boolean = false) {
   const activeAuthBase = isTest ? QURAN_TEST_AUTH_BASE : QURAN_AUTH_BASE;
   const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
 
-  const nonce = crypto.randomUUID();
-  localStorage.setItem("oauth_nonce", nonce);
-
+  // Using OAuth2 only scopes (openid removed - client not registered for OIDC)
   const params = new URLSearchParams({
     response_type: "code",
     client_id: activeClientId,
     redirect_uri: REDIRECT_URI,
-    scope: "openid offline_access user collection",
+    scope: "offline_access user collection bookmark reading_session",
     state,
-    nonce,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   });
@@ -87,20 +84,28 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
   const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
 
   try {
-    // Securely execute the server-side token exchange inside your Supabase Postgres instance to eliminate CORS errors.
-    // No CLI required! Simply paste the SQL snippet provided into the Supabase SQL Editor.
-    const { data: rpcResult, error: rpcError } = await supabase.rpc("exchange_oauth_token", {
-      p_code: code,
-      p_code_verifier: codeVerifier,
-      p_redirect_uri: REDIRECT_URI,
-      p_is_test: isTest,
+    // Call Vercel API Route for secure server-side token exchange
+    // This keeps client_secret safe on the server
+    const apiUrl = import.meta.env.DEV 
+      ? "http://localhost:3000/api/exchange-oauth"
+      : "/api/exchange-oauth";
+      
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: code,
+        codeVerifier: codeVerifier,
+        redirectUri: REDIRECT_URI,
+        isTest: isTest,
+      }),
     });
 
-    const tokenData = rpcResult as any;
-
-    if (rpcError || !tokenData || tokenData.error) {
-      const actualError = tokenData?.error?.error_description || tokenData?.error?.message || tokenData?.error || rpcError?.message || "Database refused the secure token exchange.";
-      console.error("Database token exchange failed:", actualError);
+    const tokenData = await response.json();
+    
+    if (!response.ok || tokenData.error) {
+      const actualError = tokenData?.error?.error_description || tokenData?.error || "Token exchange failed";
+      console.error("Token exchange failed:", actualError);
       return { success: false, error: actualError };
     }
 
@@ -113,6 +118,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
     localStorage.setItem("auth_tokens", JSON.stringify(tokens));
 
     // Use the pre-fetched profile provided securely by the Edge function
+    // API returns: { email, first_name, last_name } (no 'name' field, no 'sub')
     const userInfo = tokenData.profile;
     let profile = {
       name: isTest ? "Quran Test Learner" : "Quran Learner",
@@ -120,8 +126,12 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
     };
 
     if (userInfo) {
+      const firstName = userInfo.first_name || "";
+      const lastName = userInfo.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      
       profile = {
-        name: `${userInfo.first_name || ""} ${userInfo.last_name || ""}`.trim() || userInfo.email?.split("@")[0] || "Quran Learner",
+        name: fullName || userInfo.email?.split("@")[0] || "Quran Learner",
         email: userInfo.email || profile.email,
       };
     }
@@ -143,7 +153,6 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
     localStorage.removeItem("oauth_code_verifier");
     localStorage.removeItem("oauth_state");
     localStorage.removeItem("oauth_is_test");
-    localStorage.removeItem("oauth_nonce");
 
     return { success: true };
   } catch (err: any) {

@@ -19,6 +19,8 @@ serve(async (req) => {
     }
 
     // 1. Select the correct environment configuration
+    // NOTE: These secrets must be set in Supabase Dashboard > Project Settings > Edge Functions > Secrets
+    // Or via CLI: supabase secrets set QURAN_CLIENT_ID=your_id QURAN_CLIENT_SECRET=your_secret
     const activeAuthBase = isTest
       ? Deno.env.get("QURAN_TEST_AUTH_BASE") || "https://prelive-oauth2.quran.foundation"
       : Deno.env.get("QURAN_AUTH_BASE") || "https://oauth2.quran.foundation";
@@ -32,7 +34,15 @@ serve(async (req) => {
       : Deno.env.get("QURAN_CLIENT_SECRET");
 
     if (!activeClientId || !activeClientSecret) {
-      throw new Error(`Supabase Secret Missing: QURAN_CLIENT_ID or QURAN_CLIENT_SECRET is not defined on the server.`);
+      console.error("Missing secrets:", { 
+        hasClientId: !!activeClientId, 
+        hasClientSecret: !!activeClientSecret,
+        isTest 
+      });
+      throw new Error(
+        `Supabase Secret Missing: ${isTest ? 'QURAN_TEST_' : 'QURAN_'}CLIENT_ID or ${isTest ? 'QURAN_TEST_' : 'QURAN_'}CLIENT_SECRET is not defined. ` +
+        `Please set these secrets in Supabase Dashboard > Project Settings > Edge Functions > Secrets.`
+      );
     }
 
     console.log(`Exchanging token for ${isTest ? 'Test' : 'Production'} with base: ${activeAuthBase}`);
@@ -69,7 +79,8 @@ serve(async (req) => {
       });
     }
 
-    // 5. Immediately fetch the OIDC profile while we're securely server-side
+    // 5. Immediately fetch the user profile while we're securely server-side
+    // API returns: { email, first_name, last_name } (OAuth2 UserInfo, not OIDC)
     let userInfo = null;
     try {
       const profileResponse = await fetch(`${activeAuthBase}/oauth2/userinfo`, {
@@ -80,6 +91,10 @@ serve(async (req) => {
       
       if (profileResponse.ok) {
         userInfo = await profileResponse.json();
+        console.log("UserInfo received:", userInfo);
+      } else {
+        const errorText = await profileResponse.text();
+        console.warn("UserInfo fetch failed:", profileResponse.status, errorText);
       }
     } catch (e) {
       console.warn("User profile fetch failed, continuing without profile:", e.message);

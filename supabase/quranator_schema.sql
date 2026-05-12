@@ -161,3 +161,15 @@ ALTER TABLE public.last_read ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read last_read" ON public.last_read FOR SELECT USING (true);
 CREATE POLICY "Allow public insert last_read" ON public.last_read FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update last_read" ON public.last_read FOR UPDATE USING (true);
+
+-- ============================================
+-- REQUIRED SUPABASE SECRETS SETUP FOR OAUTH2
+-- ============================================
+-- Run these commands in Supabase CLI:
+--
+-- supabase secrets set QURAN_CLIENT_ID="74b4fce7-1591-401d-93de-c27a2b0cac85"
+-- supabase secrets set QURAN_CLIENT_SECRET="RWURHXsYNMkNWL4ADl1QwUxAHD"
+-- supabase secrets set QURAN_TEST_CLIENT_ID="9c656e3f-4cd0-4588-af77-dcf96da42264"
+-- supabase secrets set QURAN_TEST_CLIENT_SECRET="Qetk6jUb~jCwtV1815zYKNy1a7"
+--
+-- Or go to: Supabase Dashboard > Project Settings > Edge Functions > Secrets
