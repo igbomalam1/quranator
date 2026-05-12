@@ -163,13 +163,11 @@ CREATE POLICY "Allow public insert last_read" ON public.last_read FOR INSERT WIT
 CREATE POLICY "Allow public update last_read" ON public.last_read FOR UPDATE USING (true);
 
 -- ============================================
--- REQUIRED SUPABASE SECRETS SETUP FOR OAUTH2
+-- REQUIRED VERCEL ENVIRONMENT VARIABLES FOR OAUTH2
 -- ============================================
--- Run these commands in Supabase CLI:
+-- Set these in Vercel Dashboard > Project Settings > Environment Variables:
 --
--- supabase secrets set QURAN_CLIENT_ID="74b4fce7-1591-401d-93de-c27a2b0cac85"
--- supabase secrets set QURAN_CLIENT_SECRET="RWURHXsYNMkNWL4ADl1QwUxAHD"
--- supabase secrets set QURAN_TEST_CLIENT_ID="9c656e3f-4cd0-4588-af77-dcf96da42264"
--- supabase secrets set QURAN_TEST_CLIENT_SECRET="Qetk6jUb~jCwtV1815zYKNy1a7"
+-- QURAN_CLIENT_ID=74b4fce7-1591-401d-93de-c27a2b0cac85
+-- QURAN_CLIENT_SECRET=your_production_secret_here
 --
--- Or go to: Supabase Dashboard > Project Settings > Edge Functions > Secrets
+-- Note: OAuth is handled via Vercel API Routes (api/exchange-oauth.ts)

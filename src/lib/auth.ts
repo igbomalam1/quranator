@@ -1,14 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Auth credentials with runtime safety fallback cascade
-// Auth credentials - STRICTLY hardcoded for production to eliminate configuration divergence risks on edge deployments
+// Production OAuth configuration only
 const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
 const CLIENT_ID = "74b4fce7-1591-401d-93de-c27a2b0cac85";
 
-const QURAN_TEST_AUTH_BASE = import.meta.env.VITE_QURAN_TEST_AUTH_BASE || "https://prelive-oauth2.quran.foundation";
-const TEST_CLIENT_ID = import.meta.env.VITE_QURAN_TEST_CLIENT_ID || "9c656e3f-4cd0-4588-af77-dcf96da42264";
-
-// Strictly use environment variable as requested to prevent mismatched redirect URIs on deployments
 export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`;
 
 export interface AuthUser {
@@ -42,22 +37,18 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
     .replace(/=+$/, "");
 }
 
-export async function initiateOAuth(isTest: boolean = false) {
+export async function initiateOAuth() {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
   const state = crypto.randomUUID();
 
   localStorage.setItem("oauth_code_verifier", codeVerifier);
   localStorage.setItem("oauth_state", state);
-  localStorage.setItem("oauth_is_test", isTest ? "true" : "false");
-
-  const activeAuthBase = isTest ? QURAN_TEST_AUTH_BASE : QURAN_AUTH_BASE;
-  const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
 
   // Using OAuth2 only scopes (openid removed - client not registered for OIDC)
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: activeClientId,
+    client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     scope: "offline_access user collection bookmark reading_session",
     state,
@@ -65,7 +56,7 @@ export async function initiateOAuth(isTest: boolean = false) {
     code_challenge_method: "S256",
   });
 
-  const finalUrl = `${activeAuthBase}/oauth2/auth?${params.toString()}`;
+  const finalUrl = `${QURAN_AUTH_BASE}/oauth2/auth?${params.toString()}`;
   console.log("Initiating OAuth redirect to:", finalUrl);
   window.location.href = finalUrl;
 }
@@ -73,19 +64,14 @@ export async function initiateOAuth(isTest: boolean = false) {
 export async function handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string }> {
   const savedState = localStorage.getItem("oauth_state");
   const codeVerifier = localStorage.getItem("oauth_code_verifier");
-  const isTest = localStorage.getItem("oauth_is_test") === "true";
 
   if (state !== savedState || !codeVerifier) {
     console.error("OAuth state mismatch or missing verifier");
     return { success: false, error: "OAuth state mismatch or missing session verifier" };
   }
 
-  const activeAuthBase = isTest ? QURAN_TEST_AUTH_BASE : QURAN_AUTH_BASE;
-  const activeClientId = isTest ? TEST_CLIENT_ID : CLIENT_ID;
-
   try {
     // Call Vercel API Route for secure server-side token exchange
-    // This keeps client_secret safe on the server
     const apiUrl = import.meta.env.DEV 
       ? "http://localhost:3000/api/exchange-oauth"
       : "/api/exchange-oauth";
@@ -97,7 +83,6 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
         code: code,
         codeVerifier: codeVerifier,
         redirectUri: REDIRECT_URI,
-        isTest: isTest,
       }),
     });
 
@@ -117,12 +102,11 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 
     localStorage.setItem("auth_tokens", JSON.stringify(tokens));
 
-    // Use the pre-fetched profile provided securely by the Edge function
-    // API returns: { email, first_name, last_name } (no 'name' field, no 'sub')
+    // API returns: { email, first_name, last_name }
     const userInfo = tokenData.profile;
     let profile = {
-      name: isTest ? "Quran Test Learner" : "Quran Learner",
-      email: isTest ? "test-user@quran.com" : "user@quran.com",
+      name: "Quran Learner",
+      email: "user@quran.com",
     };
 
     if (userInfo) {
@@ -138,7 +122,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 
     localStorage.setItem("auth_user", JSON.stringify(profile));
 
-    // Upsert real user profile into Supabase
+    // Upsert user profile into Supabase
     const { error: upsertError } = await supabase
       .from("profiles")
       .upsert({
@@ -152,7 +136,6 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
 
     localStorage.removeItem("oauth_code_verifier");
     localStorage.removeItem("oauth_state");
-    localStorage.removeItem("oauth_is_test");
 
     return { success: true };
   } catch (err: any) {
@@ -197,7 +180,6 @@ export async function demoLogin() {
   localStorage.setItem("auth_tokens", JSON.stringify(tokens));
   localStorage.setItem("auth_user", JSON.stringify(user));
 
-  // Upsert demo profile into Supabase
   await supabase.from("profiles").upsert({
     email: user.email,
     name: user.name,

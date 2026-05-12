@@ -4,6 +4,8 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -19,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { code, codeVerifier, redirectUri, isTest } = req.body;
+    const { code, codeVerifier, redirectUri } = req.body;
 
     if (!code || !codeVerifier || !redirectUri) {
       return res.status(400).json({
@@ -27,31 +29,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Select environment configuration from Vercel env vars
-    const activeAuthBase = isTest
-      ? process.env.QURAN_TEST_AUTH_BASE || "https://prelive-oauth2.quran.foundation"
-      : process.env.QURAN_AUTH_BASE || "https://oauth2.quran.foundation";
+    // Production credentials only from Vercel env vars
+    const clientId = process.env.QURAN_CLIENT_ID;
+    const clientSecret = process.env.QURAN_CLIENT_SECRET;
 
-    const activeClientId = isTest
-      ? process.env.QURAN_TEST_CLIENT_ID
-      : process.env.QURAN_CLIENT_ID;
-
-    const activeClientSecret = isTest
-      ? process.env.QURAN_TEST_CLIENT_SECRET
-      : process.env.QURAN_CLIENT_SECRET;
-
-    if (!activeClientId || !activeClientSecret) {
+    if (!clientId || !clientSecret) {
       console.error("Missing OAuth credentials:", {
-        hasClientId: !!activeClientId,
-        hasClientSecret: !!activeClientSecret,
-        isTest,
+        hasClientId: !!clientId,
+        hasClientSecret: !!clientSecret,
       });
       return res.status(500).json({
-        error: `Server configuration error: Missing ${isTest ? "test " : ""}OAuth credentials`,
+        error: "Server configuration error: Missing OAuth credentials",
       });
     }
 
-    console.log(`Exchanging token for ${isTest ? "Test" : "Production"} environment`);
+    console.log("Exchanging token for Production environment");
 
     // Build token exchange request
     const bodyParams = new URLSearchParams({
@@ -62,10 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // Generate Basic Auth header
-    const credentials = Buffer.from(`${activeClientId}:${activeClientSecret}`).toString("base64");
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
     // Exchange code for tokens
-    const tokenResponse = await fetch(`${activeAuthBase}/oauth2/token`, {
+    const tokenResponse = await fetch(`${QURAN_AUTH_BASE}/oauth2/token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -86,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch user profile
     let userInfo = null;
     try {
-      const profileResponse = await fetch(`${activeAuthBase}/oauth2/userinfo`, {
+      const profileResponse = await fetch(`${QURAN_AUTH_BASE}/oauth2/userinfo`, {
         headers: {
           Authorization: `Bearer ${tokenData.access_token}`,
         },
@@ -99,7 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn("UserInfo fetch failed:", profileResponse.status);
       }
     } catch (e) {
-      console.warn("UserInfo fetch error:", e.message);
+      console.warn("UserInfo fetch error:", (e as Error).message);
     }
 
     // Return combined response
@@ -110,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error) {
     console.error("Exchange OAuth Error:", error);
     return res.status(500).json({
-      error: error.message || "Internal server error",
+      error: (error as Error).message || "Internal server error",
     });
   }
 }
