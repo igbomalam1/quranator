@@ -1,10 +1,11 @@
 // Vercel Serverless Function for OAuth Token Exchange
-// Endpoint: POST /api/exchange-oauth
-// Environment variables are read from Vercel Dashboard
+// TEST ENVIRONMENT - hardcoded credentials for debugging
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
+const QURAN_AUTH_BASE = "https://prelive-oauth2.quran.foundation";
+const CLIENT_ID = "9c656e3f-4cd0-4588-af77-dcf96da42264";
+const CLIENT_SECRET = "Qetk6jUb~jCwtV1815zYKNy1a7";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -29,21 +30,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Production credentials only from Vercel env vars
-    const clientId = process.env.QURAN_CLIENT_ID;
-    const clientSecret = process.env.QURAN_CLIENT_SECRET;
+    // TEST credentials - hardcoded for debugging scope issues
+    const clientId = CLIENT_ID;
+    const clientSecret = CLIENT_SECRET;
 
-    if (!clientId || !clientSecret) {
-      console.error("Missing OAuth credentials:", {
-        hasClientId: !!clientId,
-        hasClientSecret: !!clientSecret,
-      });
-      return res.status(500).json({
-        error: "Server configuration error: Missing OAuth credentials",
-      });
-    }
-
-    console.log("Exchanging token for Production environment");
+    console.log("Exchanging token for TEST environment");
 
     // Build token exchange request
     const bodyParams = new URLSearchParams({

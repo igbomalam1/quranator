@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Production OAuth configuration only
-const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
-const CLIENT_ID = "74b4fce7-1591-401d-93de-c27a2b0cac85";
+// TEST OAuth configuration - hardcoded to diagnose scope issues
+const QURAN_AUTH_BASE = "https://prelive-oauth2.quran.foundation";
+const CLIENT_ID = "9c656e3f-4cd0-4588-af77-dcf96da42264";
 
 // Redirect URI must be explicitly set in environment to match Quran.com registration exactly
 // No fallback allowed - prevents security issues from mismatched origins
