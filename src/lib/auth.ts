@@ -4,7 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 const QURAN_AUTH_BASE = "https://oauth2.quran.foundation";
 const CLIENT_ID = "74b4fce7-1591-401d-93de-c27a2b0cac85";
 
-export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`;
+// Redirect URI must be explicitly set in environment to match Quran.com registration exactly
+// No fallback allowed - prevents security issues from mismatched origins
+export const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI;
+
+// Runtime validation - fail fast if redirect URI is not configured
+if (!REDIRECT_URI) {
+  throw new Error(
+    "FATAL: VITE_REDIRECT_URI environment variable is required. " +
+    "Set it to the exact URL registered on Quran.com (e.g., https://yourapp.com/callback)"
+  );
+}
 
 export interface AuthUser {
   name: string;
